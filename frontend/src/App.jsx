@@ -37,6 +37,21 @@ const jobFraction = (job) => {
   const part = job.total ? Math.min(1, job.done / job.total) : 0;
   return from + (to - from) * part;
 };
+// Local AI memory estimate (GB) while answering: model weights (4-bit, as Ollama downloads them)
+// + context-window cache per 1K tokens + ~0.5 GB working memory. Used to warn on small computers.
+const OLLAMA_CHAT_MODELS = [
+  { id: 'llama3.2:3b', label: 'Llama 3.2 3B', note: 'lighter, for 8 GB computers', weights: 2.0, cachePer1k: 0.11 },
+  { id: 'llama3.1:8b', label: 'Llama 3.1 8B', note: 'better answers, for 16 GB or more', weights: 4.9, cachePer1k: 0.125 },
+];
+const CONTEXT_OPTIONS = [
+  { id: '16384', label: '16K tokens', note: 'reads all matching passages' },
+  { id: '8192', label: '8K tokens', note: 'uses less memory' },
+];
+const estimateMemoryGB = (modelId, context) => {
+  const m = OLLAMA_CHAT_MODELS.find(x => x.id === modelId);
+  if (!m) return null;
+  return m.weights + m.cachePer1k * (Number(context) / 1024) + 0.5;
+};
 const newSessionId = () => (window.crypto?.randomUUID ? window.crypto.randomUUID() : `s-${Date.now()}-${Math.random()}`);
 
 // Custom Tooltip Component
@@ -120,6 +135,104 @@ function Toast({ message, type, onClose }) {
       </div>
     </div>,
     document.body
+  );
+}
+
+function OllamaSettings({ form, setForm }) {
+  const presets = OLLAMA_CHAT_MODELS.map(m => m.id);
+  const [custom, setCustom] = useState(!presets.includes(form.ollama_chat_model));
+  const set = (key, value) => setForm(f => ({ ...f, [key]: value }));
+  const rec = form.recommended || {};
+  const ram = form.ram_gb || 0;
+  const need = estimateMemoryGB(form.ollama_chat_model, form.ollama_context);
+  // macOS/Windows, DocuMind and a browser need ~3.5 GB; beyond the rest, Ollama spills onto the CPU.
+  const tooHeavy = ram > 0 && need !== null && need > ram - 3.5;
+  const model = OLLAMA_CHAT_MODELS.find(m => m.id === form.ollama_chat_model);
+  const ctx = CONTEXT_OPTIONS.find(c => c.id === form.ollama_context);
+  const field = "mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:border-blue-500";
+  const recModel = OLLAMA_CHAT_MODELS.find(m => m.id === rec.ollama_chat_model);
+  const recCtx = CONTEXT_OPTIONS.find(c => c.id === rec.ollama_context);
+
+  return (
+    <div className="space-y-3 mb-4">
+      <label className="block text-sm text-gray-700 dark:text-gray-300">
+        Chat model
+        <select
+          className={field}
+          value={custom ? '__custom' : form.ollama_chat_model}
+          onChange={e => {
+            if (e.target.value === '__custom') { setCustom(true); return; }
+            setCustom(false);
+            set('ollama_chat_model', e.target.value);
+          }}
+        >
+          {OLLAMA_CHAT_MODELS.map(m => (
+            <option key={m.id} value={m.id}>
+              {m.label}: {m.note}{m.id === rec.ollama_chat_model ? ' (recommended)' : ''}
+            </option>
+          ))}
+          <option value="__custom">Another Ollama model…</option>
+        </select>
+      </label>
+      {custom && (
+        <label className="block text-sm text-gray-700 dark:text-gray-300">
+          Model name
+          <input className={field} value={form.ollama_chat_model} placeholder="e.g. qwen2.5:7b"
+                 onChange={e => set('ollama_chat_model', e.target.value)} />
+        </label>
+      )}
+
+      <label className="block text-sm text-gray-700 dark:text-gray-300">
+        Context window
+        <select className={field} value={form.ollama_context} onChange={e => set('ollama_context', e.target.value)}>
+          {CONTEXT_OPTIONS.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.label}: {c.note}{c.id === rec.ollama_context ? ' (recommended)' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {ram > 0 && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          This computer has {Math.round(ram)} GB of memory.
+          {need !== null && ` ${model.label} with a ${ctx.label.replace(' tokens', '')} window needs about ${need.toFixed(1)} GB while answering.`}
+        </p>
+      )}
+
+      {tooHeavy && (
+        <div className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3" role="alert">
+          <strong className="block mb-1">This will run slowly and use a lot of CPU on this computer.</strong>
+          {model.label} with a {ctx.label.replace(' tokens', '')} window needs about {need.toFixed(1)} GB, more than is free next to
+          your system and other apps. Ollama will run part of the model on the CPU instead: expect the CPU near full load,
+          a hot, noisy computer, other apps slowing down, and answers taking minutes instead of seconds.
+          {recModel && recCtx && ` ${recModel.label} with ${recCtx.label.replace(' tokens', '')} is recommended for this computer.`}
+          <button
+            type="button"
+            onClick={() => { setCustom(false); setForm(f => ({ ...f, ollama_chat_model: rec.ollama_chat_model, ollama_context: rec.ollama_context })); }}
+            className="block mt-2 font-medium underline focus:outline-none"
+          >
+            Use the recommended settings
+          </button>
+        </div>
+      )}
+
+      <details className="text-sm text-gray-700 dark:text-gray-300">
+        <summary className="cursor-pointer text-xs text-gray-500">Ollama address and embedding model</summary>
+        <label className="block mt-2">
+          Ollama address
+          <input className={field} value={form.ollama_url || ''} onChange={e => set('ollama_url', e.target.value)} />
+        </label>
+        <label className="block mt-2">
+          Embedding model
+          <input className={field} value={form.ollama_embed_model || ''} onChange={e => set('ollama_embed_model', e.target.value)} />
+        </label>
+      </details>
+
+      <p className="text-xs text-gray-500">
+        Install Ollama from ollama.com, then run: <code>ollama pull {form.ollama_embed_model}</code> and <code>ollama pull {form.ollama_chat_model}</code>
+      </p>
+    </div>
   );
 }
 
@@ -258,8 +371,7 @@ export default function App() {
 
   const settingsPayload = () => {
     const body = { ...settingsForm };
-    delete body.nvidia_key_set;
-    delete body.nvidia_key_hint;
+    ['nvidia_key_set', 'nvidia_key_hint', 'ram_gb', 'low_memory', 'recommended'].forEach(k => delete body[k]);
     if (!body.nvidia_api_key) delete body.nvidia_api_key; // empty field = keep the saved key
     return body;
   };
@@ -660,25 +772,7 @@ export default function App() {
                 <span className="block text-xs text-gray-500 mt-1">Get a free key at build.nvidia.com.</span>
               </label>
             ) : (
-              <div className="space-y-3 mb-4">
-                {[
-                  ['ollama_url', 'Ollama address'],
-                  ['ollama_embed_model', 'Embedding model'],
-                  ['ollama_chat_model', 'Chat model'],
-                ].map(([key, label]) => (
-                  <label key={key} className="block text-sm text-gray-700 dark:text-gray-300">
-                    {label}
-                    <input
-                      value={settingsForm[key] || ''}
-                      onChange={e => setSettingsForm(f => ({ ...f, [key]: e.target.value }))}
-                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:border-blue-500"
-                    />
-                  </label>
-                ))}
-                <p className="text-xs text-gray-500">
-                  Install Ollama from ollama.com, then run: <code>ollama pull {settingsForm.ollama_embed_model}</code> and <code>ollama pull {settingsForm.ollama_chat_model}</code>
-                </p>
-              </div>
+              <OllamaSettings form={settingsForm} setForm={setSettingsForm} />
             )}
 
             {appStatus && !appStatus.ocr && (

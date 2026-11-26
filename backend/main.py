@@ -117,6 +117,7 @@ class SettingsIn(BaseModel):
     ollama_url: Optional[str] = None
     ollama_embed_model: Optional[str] = None
     ollama_chat_model: Optional[str] = None
+    ollama_context: Optional[str] = None
 
 def _desktop_only():
     if not DESKTOP_TOKEN:

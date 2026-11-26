@@ -12,6 +12,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+import httpx
 import openai
 from openai import OpenAI
 
@@ -45,6 +46,7 @@ def _config(settings=None) -> dict:
             "provider": "ollama", "client": _client(base + "/v1", "ollama"),
             "embed_model": s["ollama_embed_model"], "chat_model": s["ollama_chat_model"],
             "batch": 32, "parallel": 2, "extra": None, "attempts": 2, "url": base,
+            "context": int(s.get("ollama_context") or 16384),
         }
     if not s.get("nvidia_api_key"):
         raise AIError("No NVIDIA API key set. Add your key in Settings, or switch to local AI (Ollama).")
@@ -123,8 +125,36 @@ def embed(texts: list[str], kind: str = "passage", progress=None, settings=None,
     return [v for batch in results for v in batch]
 
 
+def _ollama_chat(cfg, system_prompt: str, user_prompt: str) -> str:
+    """Ollama's own chat API, so the context window (num_ctx) can be set on every request.
+    Its OpenAI-compatible API can't, and Ollama's small default window silently cuts the
+    document excerpts out of long prompts. Everything stays on this computer (localhost)."""
+    body = {
+        "model": cfg["chat_model"],
+        "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+        "stream": False,
+        "options": {"temperature": 0.1, "num_ctx": cfg["context"], "num_predict": 2048},
+    }
+    try:
+        response = httpx.post(f"{cfg['url']}/api/chat", json=body, timeout=600)
+    except httpx.ConnectError as e:
+        raise AIError(f"Can't reach Ollama at {cfg['url']}. Is the Ollama app running?") from e
+    except httpx.TimeoutException as e:
+        raise AIError("Ollama took more than 10 minutes to answer. Try a smaller model or the 8K context window in Settings.") from e
+    if response.status_code == 404:
+        raise AIError(f"Model {cfg['chat_model']} isn't installed. Run: ollama pull {cfg['chat_model']}")
+    if response.status_code >= 400:
+        detail = response.text[:300]
+        if "memory" in detail.lower():
+            raise AIError("Not enough memory for this model and context window. Choose Llama 3.2 3B or the 8K window in Settings.")
+        raise AIError(f"Ollama error {response.status_code}: {detail}")
+    return response.json().get("message", {}).get("content", "")
+
+
 def chat(system_prompt: str, user_prompt: str, settings=None) -> str:
     cfg = _config(settings)
+    if cfg["provider"] == "ollama":
+        return _ollama_chat(cfg, system_prompt, user_prompt)
     completion = _with_retry(lambda: cfg["client"].chat.completions.create(
         model=cfg["chat_model"],
         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],

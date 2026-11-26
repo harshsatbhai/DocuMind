@@ -30,12 +30,41 @@ def data_dir() -> Path:
     return path
 
 
+def total_ram_gb() -> float:
+    """Physical memory of this computer in GB (DOCUMIND_RAM_GB overrides it, for testing)."""
+    if os.environ.get("DOCUMIND_RAM_GB"):
+        return float(os.environ["DOCUMIND_RAM_GB"])
+    try:
+        if sys.platform.startswith("win"):
+            import ctypes
+
+            class MemoryStatus(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            status = MemoryStatus()
+            status.dwLength = ctypes.sizeof(MemoryStatus)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))
+            return status.ullTotalPhys / 1024 ** 3
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1024 ** 3  # macOS, Linux
+    except Exception:
+        return 0.0  # unknown: treat as a normal computer
+
+
+RAM_GB = total_ram_gb()
+LOW_MEMORY = 0 < RAM_GB <= 9  # 8 GB computers (they report a little under 8)
+CONTEXT_CHOICES = ("8192", "16384")
+
 DEFAULT_SETTINGS = {
     "provider": "nvidia",                     # "nvidia" (cloud) or "ollama" (local)
     "nvidia_api_key": "",
     "ollama_url": "http://localhost:11434",
     "ollama_embed_model": "nomic-embed-text",
-    "ollama_chat_model": "llama3.1:8b",
+    # 8 GB computers: the 3B model with an 8K window fits in memory; 8B with 16K does not.
+    "ollama_chat_model": "llama3.2:3b" if LOW_MEMORY else "llama3.1:8b",
+    "ollama_context": "8192" if LOW_MEMORY else "16384",   # tokens Ollama keeps in memory per answer
 }
 _lock = threading.Lock()
 
@@ -63,6 +92,8 @@ def save_settings(changes: dict) -> dict:
                 current[key] = str(changes[key]).strip()
         if current["provider"] not in ("nvidia", "ollama"):
             current["provider"] = "nvidia"
+        if current["ollama_context"] not in CONTEXT_CHOICES:
+            current["ollama_context"] = DEFAULT_SETTINGS["ollama_context"]
         path = _settings_path()
         tmp = path.with_suffix(".tmp")
         tmp.write_text(json.dumps(current, indent=2))
@@ -80,4 +111,8 @@ def public_settings() -> dict:
     key = s.pop("nvidia_api_key", "")
     s["nvidia_key_set"] = bool(key)
     s["nvidia_key_hint"] = f"…{key[-4:]}" if len(key) >= 8 else ""
+    s["ram_gb"] = round(RAM_GB, 1)
+    s["low_memory"] = LOW_MEMORY
+    s["recommended"] = {"ollama_chat_model": DEFAULT_SETTINGS["ollama_chat_model"],
+                        "ollama_context": DEFAULT_SETTINGS["ollama_context"]}
     return s
