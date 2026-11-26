@@ -1,0 +1,53 @@
+# .gitignore
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+ENV/
+
+# --- Testing / Coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- IDE / Editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Streamlit ---
+.streamlit/secrets.toml
+
+# --- Logs ---
+*.log
+
+# --- Render / Local data ---
+*.sqlite3
+/tmp/
+# Desktop app build outputs
+build/
+frontend/src-tauri/target/
+frontend/src-tauri/gen/schemas
+frontend/src-tauri/binaries/documind-backend-*
+devdata/

@@ -1,0 +1,199 @@
+import os
+import uuid
+import re
+from dotenv import load_dotenv
+from typing import List
+
+load_dotenv()
+
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from openai import OpenAI
+
+from .database import init_db, insert_chunks, search_chunks, clear_session, delete_document
+from .embeddings import get_embedding, get_embeddings
+from .parser import parse_file_to_chunks
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+NEMOTRON_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
+_nemotron_client = None
+
+def get_nemotron() -> OpenAI:
+    global _nemotron_client
+    if _nemotron_client is None:
+        _nemotron_client = OpenAI(
+            base_url="https://integrate.api.nvidia.com/v1",
+            api_key=os.environ["NVIDIA_API_KEY"],
+        )
+    return _nemotron_client
+
+def clean_llm_response(text: str) -> str:
+    text = text.replace('**', '')
+    text = text.replace('*', '')
+    text = text.replace('-', '')
+    text = text.replace('–', '')
+    text = text.replace('—', '')
+    text = text.replace('_', '')
+    text = re.sub(r'^#+\s*', '', text, flags=re.MULTILINE)
+    text = re.sub(r' +', ' ', text)
+    text = re.sub(r'(\d+\.)\s*\n+', r'\1 ', text)
+    return text.strip()
+
+@app.on_event("startup")
+def startup():
+    init_db()
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+@app.post("/upload")
+async def upload_files(
+    files: List[UploadFile] = File(...),
+    session_id: str = Form(None),
+):
+    if session_id is None:
+        session_id = str(uuid.uuid4())
+    
+    successful_docs = []
+    failed_files = []
+    
+    for file in files:
+        doc_id = str(uuid.uuid4())
+        contents = await file.read()
+        
+        try:
+            chunks = parse_file_to_chunks(contents, file.filename)
+            if chunks:
+                embeddings = get_embeddings(chunks)
+                insert_chunks(session_id, doc_id, file.filename, chunks, embeddings)
+                successful_docs.append({"doc_id": doc_id, "filename": file.filename, "chunks_count": len(chunks)})
+        except Exception as e:
+            print(f"Failed to process {file.filename}: {str(e)}")
+            if file.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp')):
+                failed_files.append({"filename": file.filename, "error": "No readable text found."})
+            else:
+                failed_files.append({"filename": file.filename, "error": str(e)})
+            
+    if not successful_docs and failed_files:
+        all_images_empty = all(f["error"] == "No readable text found." for f in failed_files)
+        if all_images_empty:
+            raise HTTPException(status_code=400, detail="failed to process file(s). No readable text found in image(s)")
+        else:
+            error_msg = "; ".join([f"{f['filename']}: {f['error']}" for f in failed_files])
+            raise HTTPException(status_code=400, detail=f"Failed to process files. {error_msg}")
+
+    return {
+        "session_id": session_id, 
+        "documents": successful_docs,
+        "failed": failed_files
+    }
+
+@app.post("/query")
+async def query(
+    session_id: str = Form(None),
+    question: str = Form(...),
+    doc_ids: List[str] = Form([])
+):
+    context = ""
+    
+    if session_id and doc_ids and len(doc_ids) > 0:
+        try:
+            q_emb = get_embedding(question)
+            results = search_chunks(session_id, q_emb, doc_ids, top_k=15)
+            if results:
+                context = "\n\n".join([r["content"] for r in results])
+        except Exception as e:
+            print(f"Search error: {e}")
+
+    system_prompt = """You are DocuMind, an intelligent AI document assistant. 
+
+RULES FOR YOUR IDENTITY AND GENERAL CHAT:
+1. If the user asks "what can you do?" or similar broad questions about your capabilities, you must respond EXACTLY with the following structure, using the exact HTML tags provided:
+   <h3>DocuMind Capabilities</h3>
+   DocuMind is an intelligent AI document assistant designed to read, analyze, and answer questions based on the content of uploaded documents.
+   
+   <h4>Supported File Types</h4>
+   1. PDF
+   2. XLSX
+   3. TXT
+   4. DOCX
+   5. CSV
+   6. PPTX
+   7. PPT
+   8. Images (JPG, PNG, etc.)
+   
+   <h4>Ideal Users</h4>
+   1. Businesses
+   2. Law Firms
+   3. College Students
+   4. Researchers
+
+2. If the user specifically asks "What file types can you analyze?" or similar, respond ONLY with the list of Supported File Types. Do NOT include the "DocuMind Capabilities" heading, the description, or the "Ideal Users" section.
+
+3. If the user just says greetings (like "hi", "hello") or asks who you are, respond ONLY with your identity as DocuMind and a brief instruction on how to use you. DO NOT list example use cases unless explicitly asked.
+4. ONLY if the user specifically asks for example use cases, provide exactly 3 example use cases from the list below.
+5. If you are answering questions based on provided context, answer accurately using ONLY that context.
+
+RULES FOR YOUR RESPONSE FORMATTING:
+1. Use numbers (1., 2., 3.) for lists.
+2. DO NOT use markdown symbols like *, #, -, –, or _ anywhere in your response.
+3. Use increased font size for Headings by wrapping them in <h3></h3> HTML tags.
+4. Use slightly smaller font size for Subheadings by wrapping them in <h4></h4> HTML tags.
+5. Split long answers into paragraphs using a single empty line (two newline characters: \\n\\n). Do not use multiple empty lines.
+6. CRITICAL: When writing numbered lists, the number MUST be on the exact same line as the text. DO NOT put a newline after the number. Example: "1. Financial Analysis" NOT "1.\\nFinancial Analysis".
+
+EXAMPLE USE CASES (Only use if explicitly asked):
+1. Financial Analysis & Auditing
+Upload: Quarterly Reports, Invoices (XLSX), Tax Documents.
+Query: "What was our total expenditure on cloud hosting in Q3 compared to Q2?"
+
+2. Customer Support & Knowledge Base
+Upload: Product Manuals, FAQ Sheets, Technical Specs.
+Query: "My device is blinking a red light. What does the manual say this means?"
+
+3. Legal & Compliance
+Upload: Contracts, NDAs, Terms of Service.
+Query: "Does this NDA have a non-compete clause? If so, how long does it last?"
+"""
+
+    user_prompt = f"""Context from uploaded documents (if any):
+{context if context else "No documents uploaded or selected."}
+
+User Input: {question}"""
+
+    try:
+        completion = get_nemotron().chat.completions.create(
+            model=NEMOTRON_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.1,
+            max_tokens=2048,
+        )
+        raw_answer = completion.choices[0].message.content
+        final_answer = clean_llm_response(raw_answer)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM failed: {str(e)}")
+
+    return {"answer": final_answer}
+
+@app.delete("/session/{session_id}")
+def delete_session_route(session_id: str):
+    clear_session(session_id)
+    return {"status": "cleared"}
+
+@app.delete("/session/{session_id}/document/{doc_id}")
+def delete_document_route(session_id: str, doc_id: str):
+    delete_document(session_id, doc_id)
+    return {"status": "deleted"}
