@@ -36,6 +36,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/documind-backend"]
+    "externalBin": [
+      "binaries/documind-backend"
+    ],
+    "macOS": {
+      "signingIdentity": "-"
+    }
   }
 }
