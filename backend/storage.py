@@ -52,9 +52,12 @@ if USE_POSTGRES:
 
     def last_session():
         return None
+
+    def delete_all():
+        raise RuntimeError("Deleting all data is only available in the desktop app.")
 else:
     from .store_sqlite import (  # noqa: F401
-        add_messages, chunk_texts, clear_session, copy_cached_document, delete_document,
+        add_messages, chunk_texts, clear_session, copy_cached_document, delete_all, delete_document,
         documents_with_other_model, init_db, insert_document, last_session, list_documents,
         list_messages, replace_embeddings, search_chunks,
     )

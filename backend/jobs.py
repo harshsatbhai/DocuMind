@@ -87,3 +87,8 @@ def _run(job_id, session_id, filename, data):
             message = "No readable text found."
         print(f"Failed to process {filename}: {e}")
         _update(job_id, status="failed", stage="failed", error=message)
+
+
+def any_running() -> bool:
+    with _lock:
+        return any(j["status"] == "running" for j in _jobs.values())

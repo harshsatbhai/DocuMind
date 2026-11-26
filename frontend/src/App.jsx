@@ -273,6 +273,7 @@ export default function App() {
   const [settingsTest, setSettingsTest] = useState(null);
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [backendError, setBackendError] = useState(null);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [showScrollFade, setShowScrollFade] = useState(false);
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -364,6 +365,7 @@ export default function App() {
 
   const openSettings = async () => {
     setSettingsTest(null);
+    setConfirmDeleteAll(false);
     const { ok, data } = await apiJson('/settings');
     if (ok) setSettingsForm({ ...data, nvidia_api_key: '' });
     setShowSettings(true);
@@ -399,6 +401,25 @@ export default function App() {
     } else {
       showToast(`Could not save settings: ${data.detail || 'unknown error'}`, 'error');
     }
+  };
+
+  const deleteAllData = async () => {
+    setSettingsBusy(true);
+    const { ok, data } = await apiJson('/data', { method: 'DELETE' });
+    setSettingsBusy(false);
+    setConfirmDeleteAll(false);
+    if (!ok) {
+      showToast(data.detail || 'Could not delete your data.', 'error');
+      return;
+    }
+    setSessionId(null);
+    setDocuments([]);
+    setSelectedDocs(new Set());
+    setMessages(prev => [prev[0]]);
+    setShowSettings(false);
+    const st = await apiJson('/status');
+    if (st.ok) setAppStatus(st.data);
+    showToast('All DocuMind data was deleted from this computer.', 'success');
   };
 
   // Poll background indexing jobs until all are finished, updating the progress ring.
@@ -799,6 +820,32 @@ export default function App() {
                   Save
                 </button>
               </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+              {!confirmDeleteAll ? (
+                <button
+                  onClick={() => setConfirmDeleteAll(true)}
+                  className="text-sm font-medium text-red-600 dark:text-red-400 hover:underline focus:outline-none"
+                >
+                  Delete all my data
+                </button>
+              ) : (
+                <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3" role="alert">
+                  <p className="text-sm text-red-800 dark:text-red-300 mb-3">
+                    This permanently deletes every document, chat and setting DocuMind has stored on this computer,
+                    including your NVIDIA API key. Your original files elsewhere on your computer are not touched.
+                  </p>
+                  <div className="flex justify-end gap-3">
+                    <button onClick={() => setConfirmDeleteAll(false)} className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 focus:outline-none">
+                      Cancel
+                    </button>
+                    <button onClick={deleteAllData} disabled={settingsBusy} className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 focus:outline-none">
+                      Delete everything
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

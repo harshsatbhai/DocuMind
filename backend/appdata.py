@@ -116,3 +116,13 @@ def public_settings() -> dict:
     s["recommended"] = {"ollama_chat_model": DEFAULT_SETTINGS["ollama_chat_model"],
                         "ollama_context": DEFAULT_SETTINGS["ollama_context"]}
     return s
+
+
+def delete_settings():
+    """Remove saved settings, including the NVIDIA API key; defaults apply again."""
+    with _lock:
+        for name in ("settings.json", "settings.tmp"):
+            try:
+                (data_dir() / name).unlink()
+            except FileNotFoundError:
+                pass

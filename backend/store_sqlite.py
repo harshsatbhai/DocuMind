@@ -207,3 +207,17 @@ def list_messages(session_id):
 def last_session():
     row = _conn().execute("SELECT value FROM meta WHERE key='last_session'").fetchone()
     return row[0] if row else None
+
+
+def delete_all():
+    """Erase every document, chunk, embedding and chat message. VACUUM and a WAL checkpoint make
+    SQLite rewrite the file, so deleted text doesn't linger in free pages or the write-ahead log."""
+    with _write() as c:
+        c.execute("DELETE FROM chunks")
+        c.execute("DELETE FROM documents")
+        c.execute("DELETE FROM messages")
+        c.execute("DELETE FROM meta")
+    with _write_lock:
+        conn = _conn()
+        conn.execute("VACUUM")
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")

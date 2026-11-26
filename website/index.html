@@ -114,6 +114,17 @@
   pre { background: var(--ink); color: #E8EEF9; padding: 12px 16px; border-radius: 10px; overflow-x: auto; font-size: 14px; margin: 10px 0 0; }
   .warn { background: var(--warn-bg); border-radius: 12px; padding: 14px 18px; margin-top: 10px; color: #5B4300; font-size: 15px; }
 
+  .uninstall { margin-top: 18px; max-width: 760px; border-top: 1px solid var(--rule); padding-top: 18px; }
+  .uninstall summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+  .uninstall summary:hover { color: var(--ink); }
+  .uninstall-body { padding: 8px 0 0; color: var(--muted); font-size: 16px; }
+  .uninstall-body p { margin: 10px 0; }
+  .uninstall-body strong { color: var(--ink); }
+  .uninstall-body dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 20px; margin: 14px 0; }
+  .uninstall-body dt { font-weight: 600; color: var(--ink); }
+  .uninstall-body dd { margin: 0; }
+  @media (max-width: 520px) { .uninstall-body dl { grid-template-columns: 1fr; } .uninstall-body dd { margin-bottom: 8px; } }
+
   /* Extras + file types */
   .extras { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
   .extras h3 { font-size: 19px; margin: 0 0 6px; }
@@ -286,6 +297,27 @@
         <li><strong>Choose your AI</strong><p>Settings opens on first launch. Paste an NVIDIA API key, or pick Local AI if Ollama is installed.</p></li>
         <li><strong>Add documents and ask a question</strong></li>
       </ol>
+
+      <details class="uninstall">
+        <summary>How do I uninstall DocuMind?</summary>
+        <div class="uninstall-body">
+          <p>First, to remove your documents, chats and saved API key, open DocuMind, go to Settings and choose
+             <strong>Delete all my data</strong>. Uninstalling the app on its own leaves this data on your computer.</p>
+          <dl>
+            <dt>macOS</dt>
+            <dd>Drag DocuMind from Applications to the Trash.</dd>
+            <dt>Windows</dt>
+            <dd>Open Settings, then Apps, then Installed apps, find DocuMind and choose Uninstall.</dd>
+            <dt>Linux</dt>
+            <dd>Run <code>sudo apt remove docu-mind</code> or <code>sudo dnf remove docu-mind</code>, or delete the AppImage file.</dd>
+          </dl>
+          <p>If DocuMind is already uninstalled, delete its data folder instead:
+             <code>~/Library/Application Support/com.documind.app</code> on macOS,
+             <code>%APPDATA%\com.documind.app</code> on Windows, or
+             <code>~/.local/share/com.documind.app</code> on Linux.
+             Ollama and Tesseract are separate apps and are uninstalled on their own.</p>
+        </div>
+      </details>
     </section>
 
     <section aria-labelledby="extras-title">

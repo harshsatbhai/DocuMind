@@ -42,7 +42,12 @@ async def require_desktop_token(request, call_next):
         sent = request.headers.get("x-documind-token", "")
         if not hmac.compare_digest(sent, DESKTOP_TOKEN):
             return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
-    return await call_next(request)
+    response = await call_next(request)
+    if DESKTOP_TOKEN:
+        # Never let the app's web view keep copies of documents or chats in its own cache,
+        # so "Delete all my data" really removes everything.
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 if DESKTOP_TOKEN:
     # Tauri's webview origins (macOS/Linux and Windows) plus the Vite dev server.
@@ -140,6 +145,16 @@ async def test_settings(body: SettingsIn):
     candidate = appdata.load_settings()
     candidate.update(body.model_dump(exclude_none=True))
     return await run_in_threadpool(ai.test_connection, candidate)
+
+@app.delete("/data")
+def delete_all_data():
+    """Settings > Delete all my data: documents, chats, embeddings and settings (incl. API key)."""
+    _desktop_only()
+    if jobs.any_running():
+        raise HTTPException(status_code=409, detail="Files are still being indexed. Wait for them to finish, then try again.")
+    storage.delete_all()
+    appdata.delete_settings()
+    return {"deleted": True}
 
 # ---- Workspace: restore documents and chat history when the app opens (SQLite only)
 @app.get("/workspace")
