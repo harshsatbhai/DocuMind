@@ -83,3 +83,12 @@ html.dark .chat-answer :not(pre) > code {
   mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
 }
+/* Launch screen: the logo breathes gently while DocuMind's engine starts */
+@keyframes logo-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.96); opacity: 0.85; }
+}
+.logo-breathe { animation: logo-breathe 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .logo-breathe { animation: none; }
+}

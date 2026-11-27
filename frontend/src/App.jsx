@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { FileText, Trash2, Send, Bot, CheckCircle2, Moon, Sun, Copy, Edit2, User, AlertTriangle, X, Info, Settings, Cloud, HardDrive } from 'lucide-react';
-import { api, apiJson, isDesktop } from './api';
+import { FileText, Trash2, Send, CheckCircle2, Moon, Sun, Copy, Edit2, User, AlertTriangle, X, Info, Settings, Cloud, HardDrive } from 'lucide-react';
+import { api, apiJson, getBackend, isDesktop } from './api';
 import Logo from './Logo';
 
 
@@ -274,6 +274,7 @@ export default function App() {
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [backendError, setBackendError] = useState(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [engineReady, setEngineReady] = useState(!isDesktop);
   const [showScrollFade, setShowScrollFade] = useState(false);
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -341,6 +342,8 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
+        await getBackend();          // desktop: waits until the local engine answers
+        setEngineReady(true);
         const lim = await apiJson('/limits');
         if (lim.ok) setLimits({ ...DEFAULT_LIMITS, ...lim.data });
         const st = await apiJson('/status');
@@ -741,12 +744,22 @@ export default function App() {
         </div>
       )}
 
+      {!engineReady && !backendError && (
+        <div className="fixed inset-0 z-[120] flex flex-col items-center justify-center gap-5 bg-white dark:bg-gray-900" role="status" aria-live="polite">
+          <Logo className="w-20 h-20 drop-shadow-xl logo-breathe" />
+          <div className="text-center">
+            <p className="text-lg font-semibold text-gray-900 dark:text-white tracking-tight">DocuMind</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Starting up…</p>
+          </div>
+        </div>
+      )}
+
       {backendError && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-3 mb-4 text-red-600 dark:text-red-400">
-              <AlertTriangle className="w-6 h-6" />
-              <h3 className="text-lg font-semibold">DocuMind couldn't start</h3>
+            <div className="flex items-center gap-3 mb-4">
+              <Logo className="w-10 h-10 shrink-0" />
+              <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">DocuMind couldn't start</h3>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">{backendError} Please restart DocuMind.</p>
           </div>
@@ -893,7 +906,7 @@ export default function App() {
 
       <header className="h-16 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-8 bg-white dark:bg-gray-900 shrink-0 transition-colors duration-200 z-10 relative">
         <div className="flex items-center gap-3">
-          <Logo className="w-10 h-10" />
+          <Logo className="w-10 h-10 drop-shadow-md" />
           <div>
             <h1 className="font-semibold text-gray-900 dark:text-white text-lg leading-tight tracking-tight">DocuMind</h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Intelligent Document Search</p>
@@ -1113,13 +1126,13 @@ export default function App() {
               {messages.map((msg, idx) => (
                 <div key={msg.id || idx} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                   
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                    msg.role === 'user' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700'
-                  }`}>
-                    {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-                  </div>
+                  {msg.role === 'user' ? (
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-blue-600 text-white">
+                      <User className="w-4 h-4" />
+                    </div>
+                  ) : (
+                    <Logo className="w-8 h-8 shrink-0" />
+                  )}
 
                   <div className={`max-w-[80%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                     
@@ -1175,9 +1188,7 @@ export default function App() {
               
               {isTyping && (
                 <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 flex items-center justify-center shrink-0">
-                    <Bot className="w-4 h-4" />
-                  </div>
+                  <Logo className="w-8 h-8 shrink-0" />
                   <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-5 py-4 rounded-2xl rounded-tl-sm shadow-sm flex gap-1 items-center">
                     <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce"></div>
                     <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
