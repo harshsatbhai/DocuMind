@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { FileText, Trash2, Send, CheckCircle2, Moon, Sun, Copy, Edit2, User, AlertTriangle, X, Info, Settings, Cloud, HardDrive } from 'lucide-react';
+import { FileText, Trash2, Send, CheckCircle2, Moon, Sun, Copy, Edit2, User, AlertTriangle, X, Info, Settings, Cloud, HardDrive, Minus, Square } from 'lucide-react';
 import { api, apiJson, getBackend, isDesktop } from './api';
 import Logo from './Logo';
 
@@ -135,6 +135,33 @@ function Toast({ message, type, onClose }) {
       </div>
     </div>,
     document.body
+  );
+}
+
+// Desktop window chrome. macOS keeps its own close/minimise/zoom buttons, drawn over our header
+// (tauri.macos.conf.json: titleBarStyle "Overlay"); Windows and Linux have no system title bar
+// (decorations: false), so DocuMind draws these buttons itself.
+const isMacOS = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent);
+const drawsOwnWindowControls = isDesktop && !isMacOS;
+
+function WindowControls() {
+  const call = async (action) => {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    const win = getCurrentWindow();
+    if (action === 'minimize') await win.minimize();
+    if (action === 'maximize') await win.toggleMaximize();
+    if (action === 'close') await win.close();
+  };
+  const base = "w-11 h-9 flex items-center justify-center rounded-md text-gray-500 dark:text-gray-400 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+  return (
+    <div className="flex items-center gap-0.5 pl-3 ml-1 border-l border-gray-200 dark:border-gray-800">
+      <button aria-label="Minimize" title="Minimize" onClick={() => call('minimize')}
+              className={`${base} hover:bg-gray-200 dark:hover:bg-gray-800`}><Minus className="w-4 h-4" /></button>
+      <button aria-label="Maximize" title="Maximize" onClick={() => call('maximize')}
+              className={`${base} hover:bg-gray-200 dark:hover:bg-gray-800`}><Square className="w-3.5 h-3.5" /></button>
+      <button aria-label="Close" title="Close" onClick={() => call('close')}
+              className={`${base} hover:bg-red-600 hover:text-white dark:hover:bg-red-600`}><X className="w-4 h-4" /></button>
+    </div>
   );
 }
 
@@ -275,6 +302,7 @@ export default function App() {
   const [backendError, setBackendError] = useState(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [engineReady, setEngineReady] = useState(!isDesktop);
+  const [launchText, setLaunchText] = useState('Starting up…');
   const [showScrollFade, setShowScrollFade] = useState(false);
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -341,9 +369,10 @@ export default function App() {
   // On start: read limits and status, and (desktop) restore the last documents and chat.
   useEffect(() => {
     (async () => {
+      const shownAt = Date.now();
       try {
         await getBackend();          // desktop: waits until the local engine answers
-        setEngineReady(true);
+        setLaunchText('Loading your documents and chats…');
         const lim = await apiJson('/limits');
         if (lim.ok) setLimits({ ...DEFAULT_LIMITS, ...lim.data });
         const st = await apiJson('/status');
@@ -360,6 +389,10 @@ export default function App() {
           const restored = (ws.data.messages || []).map(m => ({ id: `db-${m.id}`, role: m.role, content: m.content }));
           if (restored.length) setMessages(prev => [prev[0], ...restored]);
         }
+        // Keep the logo up for a moment at least, so a fast start doesn't flash.
+        const wait = 700 - (Date.now() - shownAt);
+        if (wait > 0) await new Promise(r => setTimeout(r, wait));
+        setEngineReady(true);
       } catch (err) {
         if (isDesktop) setBackendError(String(err?.message || err));
       }
@@ -745,11 +778,11 @@ export default function App() {
       )}
 
       {!engineReady && !backendError && (
-        <div className="fixed inset-0 z-[120] flex flex-col items-center justify-center gap-5 bg-white dark:bg-gray-900" role="status" aria-live="polite">
+        <div data-tauri-drag-region className="fixed inset-0 z-[120] flex flex-col items-center justify-center gap-5 bg-gray-50 dark:bg-gray-950" role="status" aria-live="polite">
           <Logo className="w-20 h-20 drop-shadow-xl logo-breathe" />
           <div className="text-center">
             <p className="text-lg font-semibold text-gray-900 dark:text-white tracking-tight">DocuMind</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Starting up…</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{launchText}</p>
           </div>
         </div>
       )}
@@ -904,16 +937,21 @@ export default function App() {
         </div>
       )}
 
-      <header className="h-16 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-8 bg-white dark:bg-gray-900 shrink-0 transition-colors duration-200 z-10 relative">
-        <div className="flex items-center gap-3">
+      <header
+        data-tauri-drag-region
+        className={`h-16 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-gray-950 shrink-0 transition-colors duration-200 z-10 relative select-none ${
+          isDesktop && isMacOS ? 'pl-24 pr-6' : drawsOwnWindowControls ? 'pl-6 pr-3' : 'px-8'
+        }`}
+      >
+        <div data-tauri-drag-region className="flex items-center gap-3">
           <Logo className="w-10 h-10 drop-shadow-md" />
-          <div>
+          <div data-tauri-drag-region>
             <h1 className="font-semibold text-gray-900 dark:text-white text-lg leading-tight tracking-tight">DocuMind</h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Intelligent Document Search</p>
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div data-tauri-drag-region className="flex items-center gap-4">
           {documents.length > 0 && (
             <div className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-green-200 dark:border-green-800">
               <CheckCircle2 className="w-4 h-4" />
@@ -924,12 +962,11 @@ export default function App() {
           {isDesktop && (
             <button
               onClick={openSettings}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors focus:outline-none text-xs font-medium"
-              title="AI settings"
+              className="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              title="Settings"
+              aria-label="Settings"
             >
-              {appStatus?.provider === 'ollama' ? <HardDrive className="w-4 h-4" /> : <Cloud className="w-4 h-4" />}
-              {appStatus?.provider === 'ollama' ? 'Local AI' : 'NVIDIA cloud'}
-              <Settings className="w-4 h-4" />
+              <Settings className="w-5 h-5" />
             </button>
           )}
 
@@ -940,6 +977,8 @@ export default function App() {
           >
             {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
+
+          {drawsOwnWindowControls && <WindowControls />}
         </div>
       </header>
 
