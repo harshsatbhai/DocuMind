@@ -152,9 +152,9 @@ function WindowControls() {
     if (action === 'maximize') await win.toggleMaximize();
     if (action === 'close') await win.close();
   };
-  const base = "w-11 h-9 flex items-center justify-center rounded-md text-gray-500 dark:text-gray-400 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+  const base = "w-11 h-8 flex items-center justify-center rounded-md text-gray-500 dark:text-gray-400 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
   return (
-    <div className="flex items-center gap-0.5 pl-3 ml-1 border-l border-gray-200 dark:border-gray-800">
+    <div className="flex items-center gap-0.5 pl-2 ml-1 border-l border-gray-200 dark:border-gray-800">
       <button aria-label="Minimize" title="Minimize" onClick={() => call('minimize')}
               className={`${base} hover:bg-gray-200 dark:hover:bg-gray-800`}><Minus className="w-4 h-4" /></button>
       <button aria-label="Maximize" title="Maximize" onClick={() => call('maximize')}
@@ -717,7 +717,7 @@ export default function App() {
   const strokeDashoffset = circumference - (uploadProgress / 100) * circumference;
 
   return (
-    <div className="flex flex-col h-screen w-full font-sans overflow-hidden bg-white dark:bg-gray-900 transition-colors duration-200">
+    <div className="flex flex-col h-screen w-full font-sans overflow-hidden bg-gray-50 dark:bg-gray-950 transition-colors duration-200">
       
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
@@ -939,22 +939,15 @@ export default function App() {
 
       <header
         data-tauri-drag-region
-        className={`h-16 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-gray-950 shrink-0 transition-colors duration-200 z-10 relative select-none ${
-          isDesktop && isMacOS ? 'pl-24 pr-6' : drawsOwnWindowControls ? 'pl-6 pr-3' : 'px-8'
+        className={`h-10 flex items-center justify-between bg-gray-50 dark:bg-gray-950 shrink-0 transition-colors duration-200 z-10 relative select-none ${
+          isDesktop && isMacOS ? 'pl-20 pr-3' : drawsOwnWindowControls ? 'pl-4 pr-1' : 'px-4'
         }`}
       >
-        <div data-tauri-drag-region className="flex items-center gap-3">
-          <Logo className="w-10 h-10 drop-shadow-md" />
-          <div data-tauri-drag-region>
-            <h1 className="font-semibold text-gray-900 dark:text-white text-lg leading-tight tracking-tight">DocuMind</h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Intelligent Document Search</p>
-          </div>
-        </div>
-        
-        <div data-tauri-drag-region className="flex items-center gap-4">
+        <div data-tauri-drag-region className="flex-1 h-full" />
+        <div data-tauri-drag-region className="flex items-center gap-2">
           {documents.length > 0 && (
-            <div className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 border border-green-200 dark:border-green-800">
-              <CheckCircle2 className="w-4 h-4" />
+            <div className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2.5 py-0.5 rounded-full text-xs font-medium flex items-center gap-1.5 border border-green-200 dark:border-green-800 mr-1">
+              <CheckCircle2 className="w-3.5 h-3.5" />
               {documents.length} docs indexed
             </div>
           )}
@@ -962,20 +955,21 @@ export default function App() {
           {isDesktop && (
             <button
               onClick={openSettings}
-              className="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               title="Settings"
               aria-label="Settings"
             >
-              <Settings className="w-5 h-5" />
+              <Settings className="w-[18px] h-[18px]" />
             </button>
           )}
 
           <button 
             onClick={toggleTheme}
-            className="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors focus:outline-none"
-            title="Toggle Theme"
+            className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            title={isDarkMode ? 'Light mode' : 'Dark mode'}
+            aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            {isDarkMode ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
           </button>
 
           {drawsOwnWindowControls && <WindowControls />}
@@ -984,7 +978,15 @@ export default function App() {
 
       <div className="flex flex-1 overflow-hidden">
         
-        <aside className="w-80 border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 flex flex-col p-6 shrink-0 transition-colors duration-200 relative z-20 outline-none">
+        <aside className="w-80 bg-gray-50 dark:bg-gray-950 flex flex-col px-6 pb-6 pt-2 shrink-0 transition-colors duration-200 relative z-20 outline-none">
+
+          <div className="flex items-center gap-3 mb-7 shrink-0">
+            <Logo className="w-10 h-10 drop-shadow-md" />
+            <div>
+              <h1 className="font-semibold text-gray-900 dark:text-white text-lg leading-tight tracking-tight">DocuMind</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Intelligent Document Search</p>
+            </div>
+          </div>
           
           <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 tracking-wider mb-4 shrink-0">DOCUMENTS</h2>
           
@@ -1132,7 +1134,7 @@ export default function App() {
           </div>
         </aside>
 
-        <main className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-w-0 transition-colors duration-200 z-10 relative">
+        <main className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-w-0 transition-colors duration-200 z-10 relative overflow-hidden rounded-tl-2xl border-t border-l border-gray-200 dark:border-gray-800">
           
           <div className="h-16 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between px-6 shrink-0 bg-white dark:bg-gray-900">
             <div className="flex items-center gap-3">

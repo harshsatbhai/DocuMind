@@ -51,3 +51,4 @@ frontend/src-tauri/target/
 frontend/src-tauri/gen/schemas
 frontend/src-tauri/binaries/documind-backend-*
 devdata/
+node_modules/
