@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DocuMind: chat with your documents, on your own computer</title>
 <meta name="description" content="DocuMind is a desktop app for macOS, Windows and Linux. Ask questions about your PDFs, spreadsheets, slides and code. Your documents and chats stay on your computer.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta property="og:title" content="DocuMind for macOS, Windows and Linux">
@@ -42,7 +43,7 @@
   /* Header */
   .top { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
   .brand { display: flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 20px; letter-spacing: -.01em; }
-  .brand img { width: 36px; height: 36px; border-radius: 9px; }
+  .brand img { width: 36px; height: 36px; filter: drop-shadow(0 2px 4px rgba(15, 27, 51, .18)); }
   .top nav { display: flex; gap: 24px; font-size: 15px; }
   .top nav a { color: var(--muted); text-decoration: none; }
   .top nav a:hover { color: var(--ink); }
@@ -121,11 +122,8 @@
   .faq-item summary::after { content: "+"; font-weight: 400; font-size: 24px; line-height: 1; color: var(--blue-deep); }
   .faq-item[open] summary::after { content: "\2212"; }
   .faq-item p { margin: -4px 0 20px; color: var(--muted); max-width: var(--measure); }
-  .uninstall { margin-top: 18px; max-width: 760px; border-top: 1px solid var(--rule); padding-top: 18px; }
-  .uninstall summary { cursor: pointer; font-weight: 600; color: var(--muted); }
-  .uninstall summary:hover { color: var(--ink); }
-  .uninstall-body { padding: 8px 0 0; color: var(--muted); font-size: 16px; }
-  .uninstall-body p { margin: 10px 0; }
+  .uninstall-body { margin: -4px 0 20px; color: var(--muted); max-width: var(--measure); }
+  .uninstall-body p { margin: 0 0 12px; }
   .uninstall-body strong { color: var(--ink); }
   .uninstall-body dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 20px; margin: 14px 0; }
   .uninstall-body dt { font-weight: 600; color: var(--ink); }
@@ -167,7 +165,7 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <a class="brand" href="#"><img src="icon.png" alt="">DocuMind</a>
+    <a class="brand" href="#"><img src="logo.svg" alt="" width="36" height="36">DocuMind</a>
     <nav aria-label="Page sections">
       <a href="#download">Download</a>
       <a href="#privacy">Privacy</a>
@@ -314,26 +312,6 @@ sudo apt install libfuse2      # Ubuntu 22.04</pre></div>
         <li><strong>Choose your AI</strong><p>Settings opens on first launch. Paste an NVIDIA API key, or pick Local AI if Ollama is installed.</p></li>
       </ol>
 
-      <details class="uninstall" id="uninstall">
-        <summary>How do I uninstall DocuMind?</summary>
-        <div class="uninstall-body">
-          <p>First, to remove your documents, chats and saved API key, open DocuMind, go to Settings and choose
-             <strong>Delete all my data</strong>. Uninstalling the app on its own leaves this data on your computer.</p>
-          <dl>
-            <dt>macOS</dt>
-            <dd>Drag DocuMind from Applications to the Trash.</dd>
-            <dt>Windows</dt>
-            <dd>Open Settings, then Apps, then Installed apps, find DocuMind and choose Uninstall.</dd>
-            <dt>Linux</dt>
-            <dd>Run <code>sudo apt remove docu-mind</code> or <code>sudo dnf remove docu-mind</code>, or delete the AppImage file.</dd>
-          </dl>
-          <p>If DocuMind is already uninstalled, delete its data folder instead:
-             <code>~/Library/Application Support/com.documind.app</code> on macOS,
-             <code>%APPDATA%\com.documind.app</code> on Windows, or
-             <code>~/.local/share/com.documind.app</code> on Linux.
-             Ollama and Tesseract are separate apps and are uninstalled on their own.</p>
-        </div>
-      </details>
     </section>
 
     <section aria-labelledby="extras-title">
@@ -431,9 +409,25 @@ ollama pull llama3.1:8b   # 16 GB or more</pre>
           <summary>Can my team share documents in DocuMind?</summary>
           <p>Not at the moment. Each copy of DocuMind is personal and keeps its data on one computer.</p>
         </details>
-        <details class="faq-item">
+        <details class="faq-item" id="uninstall">
           <summary>How do I uninstall DocuMind?</summary>
-          <p>See <a href="#uninstall" data-open-uninstall>How do I uninstall DocuMind?</a> under Install and first launch.</p>
+          <div class="uninstall-body">
+          <p>First, to remove your documents, chats and saved API key, open DocuMind, go to Settings and choose
+             <strong>Delete all my data</strong>. Uninstalling the app on its own leaves this data on your computer.</p>
+          <dl>
+            <dt>macOS</dt>
+            <dd>Drag DocuMind from Applications to the Trash.</dd>
+            <dt>Windows</dt>
+            <dd>Open Settings, then Apps, then Installed apps, find DocuMind and choose Uninstall.</dd>
+            <dt>Linux</dt>
+            <dd>Run <code>sudo apt remove docu-mind</code> or <code>sudo dnf remove docu-mind</code>, or delete the AppImage file.</dd>
+          </dl>
+          <p>If DocuMind is already uninstalled, delete its data folder instead:
+             <code>~/Library/Application Support/com.documind.app</code> on macOS,
+             <code>%APPDATA%\com.documind.app</code> on Windows, or
+             <code>~/.local/share/com.documind.app</code> on Linux.
+             Ollama and Tesseract are separate apps and are uninstalled on their own.</p>
+        </div>
         </details>
       </div>
     </section>
@@ -583,8 +577,8 @@ ollama pull llama3.1:8b   # 16 GB or more</pre>
 
   // Links to the uninstall guide open it, wherever they are on the page.
   function openUninstall() { const d = $("#uninstall"); if (d) { d.open = true; } }
-  $$("[data-open-uninstall]").forEach(a => a.addEventListener("click", openUninstall));
   if (location.hash === "#uninstall") openUninstall();
+  window.addEventListener("hashchange", () => { if (location.hash === "#uninstall") openUninstall(); });
   $$(".repo-link").forEach(a => { a.href = configured ? `https://github.com/${GITHUB_REPO}` : RELEASES_PAGE; });
 
   init();
