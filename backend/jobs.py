@@ -23,7 +23,8 @@ STAGE_LABELS = {
     "reading": "Reading page {done} of {total}",
     "ocr": "OCR page {done} of {total}",
     "parsing": "Extracting text",
-    "describing": "Describing the photo (local image model)",
+    "describing": "Reading pictures with the local image model ({done} of {total})",
+    "pictures": "Reading text in pictures ({done} of {total})",
     "embedding": "Embedding {done} of {total} chunks",
     "saving": "Saving",
     "reused": "Already indexed, reusing",
@@ -74,7 +75,8 @@ def _run(job_id, session_id, filename, data):
             _update(job_id, stage="parsing")
             try:
                 chunks = parse_file_to_chunks(
-                    data, filename, progress=lambda stage, done, total: _update(job_id, stage=stage, done=done, total=total))
+                    data, filename, progress=lambda stage, done, total: _update(job_id, stage=stage, done=done, total=total),
+                    describe=_picture_reader(filename))
             except NoTextInImage as e:
                 chunks = _describe_photo(job_id, filename, data, sha, e)
             _update(job_id, stage="embedding", done=0, total=len(chunks))
@@ -93,6 +95,13 @@ def _run(job_id, session_id, filename, data):
         _update(job_id, status="failed", stage="failed", error=message)
 
 
+def _picture_reader(filename):
+    """The image model as a callback for pictures inside documents, or None when it's off."""
+    if not ai.vision_model():
+        return None
+    return lambda jpeg, kind, where: ai.read_picture(jpeg, filename, where, kind)
+
+
 def _describe_photo(job_id, filename, data, sha, reason: NoTextInImage) -> list[str]:
     """A photo without text (or no Tesseract): the local image model describes it once, and the
     description is indexed like text. A resized copy is kept for questions about the photo."""
@@ -106,7 +115,7 @@ def _describe_photo(job_id, filename, data, sha, reason: NoTextInImage) -> list[
             raise ValueError("No readable text found. To analyze photos without text, switch to local AI "
                              "(Ollama) in Settings and choose an image model.")
         raise ValueError("No readable text found. To analyze photos without text, choose an image model in Settings.")
-    _update(job_id, stage="describing")
+    _update(job_id, stage="describing", done=1, total=1)
     jpeg = image_for_vision(data)
     description = ai.describe_image(jpeg, filename)
     storage.save_image(sha, jpeg)

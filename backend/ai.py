@@ -273,6 +273,26 @@ def describe_image(jpeg: bytes, filename: str, settings=None) -> str:
     return text
 
 
+CHART_PROMPT = """This picture is from {where}. It is probably a chart or a table (for example a screenshot pasted into a slide).
+Read its data so that someone can answer questions about it without seeing it. Write plain text, no markdown:
+Line 1: the kind of chart or table and its title.
+Line 2: axis titles and units, if shown.
+Then a table, one row per category or x value, one column per series, columns separated by " | ", with a header row.
+Use the exact numbers printed in data labels or cells. If a value has no label, estimate it from the gridlines and write ~ before it.
+Last line: the main trend or takeaway in one sentence.
+If it is not a chart or a table, describe what it shows and copy any visible text exactly."""
+
+
+def read_picture(jpeg: bytes, filename: str, where: str, kind: str = "chart", settings=None) -> str:
+    """A picture inside a document: read a chart/table's data, or describe a photo."""
+    cfg = _config(settings)
+    if cfg["provider"] != "ollama" or not cfg.get("vision_model"):
+        raise AIError("Image analysis needs local AI (Ollama) with an image model chosen in Settings.")
+    prompt = CHART_PROMPT.format(where=f"{filename}, {where}") if kind == "chart" else f"File: {filename}, {where}\n\n{DESCRIBE_PROMPT}"
+    messages = [{"role": "user", "content": prompt, "images": [base64.b64encode(jpeg).decode()]}]
+    return _ollama_vision(cfg, messages, num_predict=900)
+
+
 def answer_with_images(system_prompt: str, user_prompt: str, images: list, settings=None) -> str:
     """Answer a question that is about photos: the image model looks at them again (up to 3),
     together with the text excerpts. Used instead of the chat model, so one model runs at a time."""

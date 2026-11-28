@@ -29,7 +29,7 @@ const fmtMB = (bytes) => `${(bytes / MB).toFixed(1)} MB`;
 
 // Real indexing progress: each stage of a background job covers part of the ring.
 const STAGE_RANGE = {
-  queued: [0, 0], parsing: [0.02, 0.1], reading: [0.02, 0.15], ocr: [0.15, 0.6], describing: [0.3, 0.3],
+  queued: [0, 0], parsing: [0.02, 0.1], reading: [0.02, 0.15], ocr: [0.15, 0.6], pictures: [0.1, 0.3], describing: [0.3, 0.65],
   embedding: [0.6, 0.95], saving: [0.95, 0.98], reused: [0.9, 0.98], done: [1, 1], failed: [1, 1],
 };
 const jobFraction = (job) => {
