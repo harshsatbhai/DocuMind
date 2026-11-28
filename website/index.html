@@ -97,6 +97,17 @@
   .grid .cols > span { background: #F5F7FB; color: #8A96AC; text-align: center; font-size: 11px; padding-block: 3px; }
   .grid .head > span { font-weight: 600; color: var(--ink); }
   .grid .r.hit > span:first-child { background-color: #F5F7FB; }
+  .fx { display: flex; align-items: center; gap: 0; margin-bottom: 8px; border: 1px solid var(--rule); border-radius: 6px; font-size: 11.5px; overflow: hidden; }
+  .fx span { padding: 4px 8px; white-space: nowrap; }
+  .fx .cell { width: 34px; text-align: center; color: var(--ink); background: #F5F7FB; border-right: 1px solid var(--rule); font-weight: 600; }
+  .fx .fn { color: #8A96AC; font-style: italic; font-family: Georgia, serif; border-right: 1px solid #EDF1F6; }
+  .fx .formula { font-family: var(--mono); color: #2B3550; overflow: hidden; text-overflow: ellipsis; }
+  .grid.stock { font-size: 12px; }
+  .grid.stock .r { grid-template-columns: 26px .95fr 1.45fr .8fr .9fr .85fr; }
+  .grid.stock .r > span { padding-inline: 7px; }
+  .grid em { font-style: normal; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; }
+  .grid em.ok { color: #166534; background: #DCFCE7; }
+  .grid em.low { color: #9A3412; background: #FFEDD5; }
   .tabs-strip { display: flex; gap: 2px; margin-top: 10px; font-size: 11px; color: var(--muted); }
   .tabs-strip span { padding: 3px 10px; border-radius: 0 0 6px 6px; background: #F2F5FA; }
   .tabs-strip span.on { background: var(--sheet); border: 1px solid var(--rule); border-top: 0; color: var(--ink); font-weight: 600; }
@@ -243,6 +254,9 @@
     .code div::before { width: 18px; margin-right: 8px; }
     .grid { font-size: 12px; }
     .grid .r > span { padding-inline: 6px; }
+    .grid.stock .r { grid-template-columns: 20px 0 1.5fr .75fr .8fr .95fr; }
+    .grid.stock .r > span:nth-child(2) { padding: 0; border: 0; }
+    .grid.stock .r > span { padding-inline: 4px; }
     .receipt { width: 78%; }
     .btn { width: 100%; justify-content: center; }
   }
@@ -304,21 +318,23 @@
 
           <div class="slide" data-type="xlsx">
             <div class="sheet">
-              <div class="file"><span>sales_2026.xlsx</span><span>Sheet: Q3</span></div>
-              <div class="grid">
-                <div class="r cols"><span></span><span>A</span><span>B</span><span>C</span></div>
-                <div class="r head"><span>1</span><span>Region</span><span class="n">Revenue</span><span class="n">Target</span></div>
-                <div class="r"><span>2</span><span>North</span><span class="n">$482,300</span><span class="n">$450,000</span></div>
-                <div class="r"><span>3</span><span>South</span><span class="n">$391,750</span><span class="n">$420,000</span></div>
-                <div class="r hit"><span>4</span><span>East</span><span class="n">$515,900</span><span class="n">$480,000</span></div>
-                <div class="r"><span>5</span><span>West</span><span class="n">$298,400</span><span class="n">$350,000</span></div>
+              <div class="file"><span>inventory_2026.xlsx</span><span>Sheet: Warehouse A</span></div>
+              <div class="fx"><span class="cell">E3</span><span class="fn">fx</span><span class="formula">=IF(C3&lt;D3, "Reorder", "OK")</span></div>
+              <div class="grid stock">
+                <div class="r cols"><span></span><span>A</span><span>B</span><span>C</span><span>D</span><span>E</span></div>
+                <div class="r head"><span>1</span><span>SKU</span><span>Product</span><span class="n">In stock</span><span class="n">Reorder at</span><span>Status</span></div>
+                <div class="r"><span>2</span><span>SK-1042</span><span>Wireless mouse</span><span class="n">340</span><span class="n">120</span><span><em class="ok">OK</em></span></div>
+                <div class="r hit"><span>3</span><span>SK-1187</span><span>USB-C charger</span><span class="n">42</span><span class="n">100</span><span><em class="low">Reorder</em></span></div>
+                <div class="r"><span>4</span><span>SK-1203</span><span>27" monitor</span><span class="n">86</span><span class="n">40</span><span><em class="ok">OK</em></span></div>
+                <div class="r hit"><span>5</span><span>SK-1310</span><span>Laptop sleeve</span><span class="n">18</span><span class="n">50</span><span><em class="low">Reorder</em></span></div>
+                <div class="r"><span>6</span><span>SK-1422</span><span>HDMI cable</span><span class="n">510</span><span class="n">150</span><span><em class="ok">OK</em></span></div>
               </div>
-              <div class="tabs-strip"><span>Q2</span><span class="on">Q3</span><span>Q4</span></div>
+              <div class="tabs-strip"><span class="on">Warehouse A</span><span>Warehouse B</span><span>Orders</span></div>
             </div>
             <div class="answer">
-              <div class="q">Which region beat its Q3 target by the most?</div>
-              East: $515,900 in revenue against a $480,000 target, $35,900 above it. North was next, $32,300 above.
-              <span class="src">[Source: sales_2026.xlsx | Sheet: Q3 | rows 2-5 | columns: Region, Revenue, Target]</span>
+              <div class="q">Which products in Warehouse A need reordering?</div>
+              Two: USB-C chargers (42 in stock, reorder at 100) and laptop sleeves (18 in stock, reorder at 50).
+              <span class="src">[Source: inventory_2026.xlsx | Sheet: Warehouse A | rows 2-6 | columns: SKU, Product, In stock, Reorder at, Status]</span>
             </div>
           </div>
 
