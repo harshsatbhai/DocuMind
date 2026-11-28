@@ -521,10 +521,13 @@ sudo apt install libfuse2      # Ubuntu 22.04</pre></div>
         <div>
           <span class="tag need">For private, offline AI</span>
           <h3>Ollama</h3>
-          <p>Install from <a href="https://ollama.com/download">ollama.com</a>, then download the two models DocuMind uses:</p>
+          <p>Install from <a href="https://ollama.com/download">ollama.com</a>, then download the models DocuMind uses:</p>
           <pre>ollama pull nomic-embed-text
 ollama pull llama3.2:3b   # 8 GB computers
 ollama pull llama3.1:8b   # 16 GB or more</pre>
+          <p>To analyze photos without text, such as products, charts and scenes, also download an image model:</p>
+          <pre>ollama pull qwen3-vl:4b   # 8 GB computers
+ollama pull qwen3-vl:8b   # 16 GB or more</pre>
         </div>
         <div>
           <span class="tag">For NVIDIA cloud AI</span>
@@ -543,7 +546,7 @@ ollama pull llama3.1:8b   # 16 GB or more</pre>
         <div><dt>Presentations</dt><dd>PowerPoint (PPTX), including tables and speaker notes</dd></div>
         <div><dt>Code</dt><dd>Python, JavaScript, TypeScript, Java, Go, C, C++, SQL and more</dd></div>
         <div><dt>Config and logs</dt><dd>JSON, YAML, TOML, XML, log files</dd></div>
-        <div><dt>Images and scans</dt><dd>JPG, PNG, TIFF, BMP, WEBP and scanned PDFs, with Tesseract</dd></div>
+        <div><dt>Images and scans</dt><dd>JPG, PNG, TIFF, BMP, WEBP and scanned PDFs: text read with Tesseract. Photos without text described by a local image model.</dd></div>
       </dl>
     </section>
     <section id="faq" aria-labelledby="faq-title">
@@ -575,11 +578,11 @@ ollama pull llama3.1:8b   # 16 GB or more</pre>
         </details>
         <details class="faq-item">
           <summary>How much memory does my computer need?</summary>
-          <p>DocuMind itself runs on any recent computer. Local AI needs more: on 8 GB computers DocuMind uses Llama 3.2 3B, and with 16 GB or more it uses Llama 3.1 8B. It chooses for you and warns you if a setting is too heavy for your computer. NVIDIA cloud AI works on any computer.</p>
+          <p>DocuMind itself runs on any recent computer. Local AI needs more: on 8 GB computers DocuMind uses Llama 3.2 3B, and with 16 GB or more it uses Llama 3.1 8B. The image model for photos is Qwen3-VL 4B or 8B in the same way. DocuMind loads only one of them at a time, so photos don't need extra memory on top of the chat model. It chooses for you and warns you if a setting is too heavy for your computer. NVIDIA cloud AI works on any computer.</p>
         </details>
         <details class="faq-item">
           <summary>Why aren't my scanned PDFs or photos being read?</summary>
-          <p>Reading text from images needs Tesseract OCR, a free add-on. See <a href="#extras-title">Optional extras</a> for the install command, then restart DocuMind.</p>
+          <p>Reading text from images needs Tesseract OCR, a free add-on. See <a href="#extras-title">Optional extras</a> for the install command, then restart DocuMind. Photos without any text, such as product pictures, need Local AI with an image model: choose one in Settings and download it with Ollama.</p>
         </details>
         <details class="faq-item">
           <summary>How large can my files be?</summary>

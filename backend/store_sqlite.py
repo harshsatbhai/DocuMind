@@ -9,6 +9,7 @@ this is well under a second for tens of thousands of chunks.
 Each document records which embedding model made its vectors (e.g. "nvidia:nvidia/nemotron-3.5-embed-1b"
 or "ollama:nomic-embed-text"), so switching AI provider never mixes incompatible vectors.
 """
+import shutil
 import sqlite3
 import threading
 import time
@@ -16,7 +17,7 @@ from contextlib import contextmanager
 
 import numpy as np
 
-from .appdata import data_dir
+from .appdata import data_dir, images_dir
 
 _local = threading.local()
 _write_lock = threading.Lock()
@@ -154,6 +155,7 @@ def replace_embeddings(doc_id, embed_model, embeddings):
 def delete_document(session_id, doc_id):
     with _write() as c:
         c.execute("DELETE FROM documents WHERE session_id=? AND doc_id=?", (session_id, doc_id))
+    prune_images()
 
 
 def clear_session(session_id):
@@ -161,6 +163,34 @@ def clear_session(session_id):
         c.execute("DELETE FROM documents WHERE session_id=?", (session_id,))
         c.execute("DELETE FROM messages WHERE session_id=?", (session_id,))
         c.execute("DELETE FROM meta WHERE key='last_session' AND value=?", (session_id,))
+    prune_images()
+
+
+def save_image(sha256, jpeg: bytes):
+    """Keep a resized copy of a photo without text, for the image model's second look."""
+    path = images_dir() / f"{sha256}.jpg"
+    if not path.exists():
+        tmp = path.with_suffix(".tmp")
+        tmp.write_bytes(jpeg)
+        tmp.replace(path)
+
+
+def load_image(sha256):
+    try:
+        return (images_dir() / f"{sha256}.jpg").read_bytes()
+    except (FileNotFoundError, OSError):
+        return None
+
+
+def prune_images():
+    """Delete saved photos that no document uses any more."""
+    folder = data_dir() / "images"
+    if not folder.exists():
+        return
+    used = {r[0] for r in _conn().execute("SELECT DISTINCT sha256 FROM documents")}
+    for f in folder.glob("*.jpg"):
+        if f.stem not in used:
+            f.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------- search
@@ -170,11 +200,11 @@ def search_chunks(session_id, query_embedding, doc_ids, embed_model, top_k=15):
     q = _normalise([query_embedding])[0]
     marks = ",".join("?" * len(doc_ids))
     cur = _conn().execute(
-        f"SELECT c.content, c.embedding FROM chunks c JOIN documents d ON d.doc_id = c.doc_id "
+        f"SELECT c.content, c.embedding, d.sha256 FROM chunks c JOIN documents d ON d.doc_id = c.doc_id "
         f"WHERE d.session_id=? AND d.embed_model=? AND c.doc_id IN ({marks})",
         (session_id, embed_model, *doc_ids))
     best_scores = np.empty(0, dtype=np.float32)
-    best_texts: list[str] = []
+    best_texts: list = []  # (content, sha256)
     while True:
         rows = cur.fetchmany(SEARCH_BATCH)
         if not rows:
@@ -183,10 +213,10 @@ def search_chunks(session_id, query_embedding, doc_ids, embed_model, top_k=15):
         if mat.shape[1] != q.shape[0]:
             continue
         scores = np.concatenate([best_scores, mat @ q])
-        texts = best_texts + [r[0] for r in rows]
+        texts = best_texts + [(r[0], r[2]) for r in rows]
         keep = np.argsort(-scores)[:top_k]
         best_scores, best_texts = scores[keep], [texts[i] for i in keep]
-    return [{"content": t, "similarity": float(s)} for t, s in zip(best_texts, best_scores)]
+    return [{"content": t, "sha256": h, "similarity": float(s)} for (t, h), s in zip(best_texts, best_scores)]
 
 
 # ---------------------------------------------------------------- chat history
@@ -221,3 +251,4 @@ def delete_all():
         conn = _conn()
         conn.execute("VACUUM")
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    shutil.rmtree(data_dir() / "images", ignore_errors=True)

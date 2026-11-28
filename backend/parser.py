@@ -337,6 +337,77 @@ def _ocr(image: Image.Image) -> str:
     return pytesseract.image_to_string(image)
 
 
+class NoTextInImage(ValueError):
+    """An image with no readable text (a product photo, a chart, a scene). The indexer can hand
+    it to the local image model instead. ocr_missing: Tesseract isn't installed at all."""
+
+    def __init__(self, message="No readable text found.", ocr_missing=False, text=""):
+        super().__init__(message)
+        self.ocr_missing = ocr_missing
+        self.text = text  # the few words OCR did read confidently, e.g. a one-word sign
+
+
+MIN_TEXT_WORDS = 4      # fewer confident words than this: treat the image as a photo without text
+MIN_WORD_CONFIDENCE = 60
+
+
+def _ocr_image(image: Image.Image) -> str:
+    """OCR a standalone image and decide whether it really contains text.
+
+    On photos Tesseract often "reads" stray marks as short junk words with low confidence, so an
+    image counts as text only when it has at least MIN_TEXT_WORDS words read with confidence
+    >= MIN_WORD_CONFIDENCE. The text is rebuilt from the same OCR pass (lines and paragraphs kept),
+    so each image is read once.
+    """
+    if _TESSERACT is None:
+        raise NoTextInImage("Tesseract OCR is not installed, so text in images can't be read. "
+                            f"Install it ({INSTALL_HINT}), then restart DocuMind.", ocr_missing=True)
+    gray = ImageOps.autocontrast(ImageOps.grayscale(image))
+    data = pytesseract.image_to_data(gray, output_type=pytesseract.Output.DICT)
+    lines, confident = {}, 0
+    for i, word in enumerate(data["text"]):
+        word = (word or "").strip()
+        if not word:
+            continue
+        try:
+            conf = float(data["conf"][i])
+        except (TypeError, ValueError):
+            conf = -1
+        if conf >= MIN_WORD_CONFIDENCE and sum(ch.isalnum() for ch in word) >= 2:
+            confident += 1
+        key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
+        lines.setdefault(key, []).append(word)
+    out, last_par = [], None
+    for key in sorted(lines):
+        par = key[:2]
+        if last_par is not None and par != last_par:
+            out.append("")
+        out.append(" ".join(lines[key]))
+        last_par = par
+    text = "\n".join(out)
+    if confident < MIN_TEXT_WORDS:
+        raise NoTextInImage(text=text if confident else "")
+    return text
+
+
+VISION_MAX_SIDE = 1024  # about 800 image tokens for Qwen3-VL: enough detail, small memory use
+
+
+def image_for_vision(file_bytes: bytes) -> bytes:
+    """A resized JPEG copy for the image model: right way up, at most VISION_MAX_SIDE pixels."""
+    image = ImageOps.exif_transpose(Image.open(io.BytesIO(file_bytes)))
+    if image.mode not in ("RGB", "L"):
+        background = Image.new("RGB", image.size, "white")
+        image = image.convert("RGBA")
+        background.paste(image, mask=image.split()[-1])
+        image = background
+    image = image.convert("RGB")
+    image.thumbnail((VISION_MAX_SIDE, VISION_MAX_SIDE), Image.LANCZOS)
+    out = io.BytesIO()
+    image.save(out, "JPEG", quality=88)
+    return out.getvalue()
+
+
 # ---------------------------------------------------------------------------
 # PDF
 # ---------------------------------------------------------------------------
@@ -670,7 +741,7 @@ def parse_file_to_chunks(file_bytes: bytes, filename: str, progress=None) -> lis
         raise ValueError("PPT files are not supported. Please save the presentation as PPTX and upload again.")
     elif ext in IMAGE_EXTS:
         try:
-            text = _ocr(Image.open(io.BytesIO(file_bytes)))
+            text = _ocr_image(Image.open(io.BytesIO(file_bytes)))
         except ValueError:
             raise
         except Exception as e:

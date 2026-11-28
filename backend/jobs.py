@@ -11,7 +11,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 from . import ai, storage
-from .parser import parse_file_to_chunks
+from .parser import NoTextInImage, _header, image_for_vision, parse_file_to_chunks
 
 _jobs: dict[str, dict] = {}
 _lock = threading.Lock()
@@ -23,6 +23,7 @@ STAGE_LABELS = {
     "reading": "Reading page {done} of {total}",
     "ocr": "OCR page {done} of {total}",
     "parsing": "Extracting text",
+    "describing": "Describing the photo (local image model)",
     "embedding": "Embedding {done} of {total} chunks",
     "saving": "Saving",
     "reused": "Already indexed, reusing",
@@ -71,8 +72,11 @@ def _run(job_id, session_id, filename, data):
             chunks_count = reused
         else:
             _update(job_id, stage="parsing")
-            chunks = parse_file_to_chunks(
-                data, filename, progress=lambda stage, done, total: _update(job_id, stage=stage, done=done, total=total))
+            try:
+                chunks = parse_file_to_chunks(
+                    data, filename, progress=lambda stage, done, total: _update(job_id, stage=stage, done=done, total=total))
+            except NoTextInImage as e:
+                chunks = _describe_photo(job_id, filename, data, sha, e)
             _update(job_id, stage="embedding", done=0, total=len(chunks))
             embeddings = ai.embed(chunks, kind="passage",
                                   progress=lambda stage, done, total: _update(job_id, stage=stage, done=done, total=total))
@@ -87,6 +91,26 @@ def _run(job_id, session_id, filename, data):
             message = "No readable text found."
         print(f"Failed to process {filename}: {e}")
         _update(job_id, status="failed", stage="failed", error=message)
+
+
+def _describe_photo(job_id, filename, data, sha, reason: NoTextInImage) -> list[str]:
+    """A photo without text (or no Tesseract): the local image model describes it once, and the
+    description is indexed like text. A resized copy is kept for questions about the photo."""
+    if not ai.vision_model():
+        if reason.text.strip():
+            # A few words only (a one-word sign, a label): index them, as before image analysis existed.
+            return [_header(filename, "OCR text from image") + "\n" + reason.text.strip()]
+        if reason.ocr_missing:
+            raise ValueError(str(reason))
+        if ai.load_settings()["provider"] != "ollama":
+            raise ValueError("No readable text found. To analyze photos without text, switch to local AI "
+                             "(Ollama) in Settings and choose an image model.")
+        raise ValueError("No readable text found. To analyze photos without text, choose an image model in Settings.")
+    _update(job_id, stage="describing")
+    jpeg = image_for_vision(data)
+    description = ai.describe_image(jpeg, filename)
+    storage.save_image(sha, jpeg)
+    return [_header(filename, "image description") + "\n" + description]
 
 
 def any_running() -> bool:

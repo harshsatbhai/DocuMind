@@ -123,6 +123,7 @@ class SettingsIn(BaseModel):
     ollama_embed_model: Optional[str] = None
     ollama_chat_model: Optional[str] = None
     ollama_context: Optional[str] = None
+    ollama_vision_model: Optional[str] = None
 
 def _desktop_only():
     if not DESKTOP_TOKEN:
@@ -234,10 +235,11 @@ async def query(
     doc_ids: List[str] = Form([])
 ):
     context = ""
+    photos = []  # (filename, jpeg) the image model should look at again
     
     if session_id and doc_ids and len(doc_ids) > 0:
         try:
-            context = await run_in_threadpool(_retrieve, session_id, question, doc_ids)
+            context, photos = await run_in_threadpool(_retrieve, session_id, question, doc_ids)
         except ai.AIError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
@@ -306,7 +308,17 @@ Query: "Does this NDA have a non-compete clause? If so, how long does it last?"
 User Input: {question}"""
 
     try:
-        raw_answer = await run_in_threadpool(ai.chat, system_prompt, user_prompt)
+        if photos:
+            # The question is about photos: the image model looks at them again and answers,
+            # instead of the chat model (one model in memory at a time).
+            names = "\n".join(f"{i + 1}. {name}" for i, (name, _) in enumerate(photos))
+            photo_prompt = (f"The images attached to this message are these files, in this order:\n{names}\n"
+                            "Look at the images to answer. Excerpts marked 'image description' are earlier notes "
+                            "about photos; trust what you see in the attached images over those notes. "
+                            "Say which file each part of your answer comes from.\n\n" + user_prompt)
+            raw_answer = await run_in_threadpool(ai.answer_with_images, system_prompt, photo_prompt, photos)
+        else:
+            raw_answer = await run_in_threadpool(ai.chat, system_prompt, user_prompt)
         final_answer = clean_llm_response(raw_answer)
     except ai.AIError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -318,7 +330,35 @@ User Input: {question}"""
     return {"answer": final_answer}
 
 
-def _retrieve(session_id: str, question: str, doc_ids: list[str]) -> str:
+MAX_PHOTOS_PER_QUESTION = 1 if appdata.LOW_MEMORY else 3   # each photo is ~800 tokens of the image model's window
+PHOTO_EXCERPTS = 5 if appdata.LOW_MEMORY else 8             # text excerpts sent along with photos
+PHOTO_SCORE_MARGIN = 0.05         # photos scoring this close to the best match are looked at too
+
+
+def _photos_to_look_at(results) -> list:
+    """When the best match for a question is a photo description, return the matching photos
+    (best first, at most 3) so the image model can look at them again. Otherwise none."""
+    if not results or not ai.vision_model():
+        return []
+    is_photo = lambda r: "| image description]" in r["content"].split("\n", 1)[0] and r.get("sha256")
+    if not is_photo(results[0]):
+        return []
+    best, photos, seen = results[0]["similarity"], [], set()
+    for r in results:
+        if not is_photo(r) or r["similarity"] < best - PHOTO_SCORE_MARGIN or r["sha256"] in seen:
+            continue
+        data = storage.load_image(r["sha256"])
+        if data:
+            name = r["content"].split("\n", 1)[0][len("[Source: "):].split(" | ")[0]
+            photos.append((name, data))
+            seen.add(r["sha256"])
+        if len(photos) == MAX_PHOTOS_PER_QUESTION:
+            break
+    return photos
+
+
+def _retrieve(session_id: str, question: str, doc_ids: list[str]):
+    """Returns (context text, photos for the image model)."""
     model = ai.embed_model_id()
     # Documents indexed with another provider's model (the user switched AI in Settings):
     # re-embed their stored chunks with the current model first, so vectors are comparable.
@@ -329,7 +369,10 @@ def _retrieve(session_id: str, question: str, doc_ids: list[str]) -> str:
             storage.replace_embeddings(doc["doc_id"], model, ai.embed(texts, kind="passage"))
     q_emb = ai.embed([question], kind="query")[0]
     results = storage.search_chunks(session_id, q_emb, doc_ids, model, top_k=15)
-    return "\n\n".join(r["content"] for r in results)
+    photos = _photos_to_look_at(results)
+    # The image model's window is smaller than the chat model's: keep its excerpts short.
+    used = results[:PHOTO_EXCERPTS] if photos else results
+    return "\n\n".join(r["content"] for r in used), photos
 
 @app.delete("/session/{session_id}")
 def delete_session_route(session_id: str):

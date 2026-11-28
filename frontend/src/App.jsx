@@ -29,7 +29,7 @@ const fmtMB = (bytes) => `${(bytes / MB).toFixed(1)} MB`;
 
 // Real indexing progress: each stage of a background job covers part of the ring.
 const STAGE_RANGE = {
-  queued: [0, 0], parsing: [0.02, 0.1], reading: [0.02, 0.15], ocr: [0.15, 0.6],
+  queued: [0, 0], parsing: [0.02, 0.1], reading: [0.02, 0.15], ocr: [0.15, 0.6], describing: [0.3, 0.3],
   embedding: [0.6, 0.95], saving: [0.95, 0.98], reused: [0.9, 0.98], done: [1, 1], failed: [1, 1],
 };
 const jobFraction = (job) => {
@@ -43,12 +43,19 @@ const OLLAMA_CHAT_MODELS = [
   { id: 'llama3.2:3b', label: 'Llama 3.2 3B', note: 'lighter, for 8 GB computers', weights: 2.0, cachePer1k: 0.11 },
   { id: 'llama3.1:8b', label: 'Llama 3.1 8B', note: 'better answers, for 16 GB or more', weights: 4.9, cachePer1k: 0.125 },
 ];
+// Image model for photos without text. DocuMind loads one model at a time, so it never adds to the chat model.
+const OLLAMA_VISION_MODELS = [
+  { id: 'qwen3-vl:4b', label: 'Qwen3-VL 4B', note: 'for 8 GB computers', weights: 3.3, cachePer1k: 0.14 },
+  { id: 'qwen3-vl:8b', label: 'Qwen3-VL 8B', note: 'more accurate, for 16 GB or more', weights: 6.1, cachePer1k: 0.14 },
+];
+// The image model's window: 4K on 8 GB computers (one photo per question), 8K otherwise.
+const visionContext = (lowMemory) => (lowMemory ? 4096 : 8192);
 const CONTEXT_OPTIONS = [
   { id: '16384', label: '16K tokens', note: 'reads all matching passages' },
   { id: '8192', label: '8K tokens', note: 'uses less memory' },
 ];
 const estimateMemoryGB = (modelId, context) => {
-  const m = OLLAMA_CHAT_MODELS.find(x => x.id === modelId);
+  const m = [...OLLAMA_CHAT_MODELS, ...OLLAMA_VISION_MODELS].find(x => x.id === modelId);
   if (!m) return null;
   return m.weights + m.cachePer1k * (Number(context) / 1024) + 0.5;
 };
@@ -176,6 +183,9 @@ function OllamaSettings({ form, setForm }) {
   const tooHeavy = ram > 0 && need !== null && need > ram - 3.5;
   const model = OLLAMA_CHAT_MODELS.find(m => m.id === form.ollama_chat_model);
   const ctx = CONTEXT_OPTIONS.find(c => c.id === form.ollama_context);
+  const vision = OLLAMA_VISION_MODELS.find(m => m.id === form.ollama_vision_model);
+  const visionNeed = vision ? estimateMemoryGB(vision.id, visionContext(form.low_memory)) : null;
+  const visionTooHeavy = ram > 0 && visionNeed !== null && visionNeed > ram - 3.5;
   const field = "mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:border-blue-500";
   const recModel = OLLAMA_CHAT_MODELS.find(m => m.id === rec.ollama_chat_model);
   const recCtx = CONTEXT_OPTIONS.find(c => c.id === rec.ollama_context);
@@ -220,11 +230,42 @@ function OllamaSettings({ form, setForm }) {
         </select>
       </label>
 
+      <label className="block text-sm text-gray-700 dark:text-gray-300">
+        Image model, for photos without text
+        <select className={field} value={form.ollama_vision_model || 'off'} onChange={e => set('ollama_vision_model', e.target.value)}>
+          {OLLAMA_VISION_MODELS.map(m => (
+            <option key={m.id} value={m.id}>
+              {m.label}: {m.note}{m.id === rec.ollama_vision_model ? ' (recommended)' : ''}
+            </option>
+          ))}
+          <option value="off">Off: only read text in images</option>
+        </select>
+        <span className="block mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Images with text are always read with OCR. The image model describes photos without text (products, charts, scenes)
+          and answers questions about them. It runs on this computer only.
+        </span>
+      </label>
+
       {ram > 0 && (
         <p className="text-xs text-gray-500 dark:text-gray-400">
           This computer has {Math.round(ram)} GB of memory.
           {need !== null && ` ${model.label} with a ${ctx.label.replace(' tokens', '')} window needs about ${need.toFixed(1)} GB while answering.`}
+          {vision && ` ${vision.label} needs about ${visionNeed.toFixed(1)} GB while it looks at photos.`}
+          {vision && need !== null && ' DocuMind loads one model at a time, so they never need memory together.'}
         </p>
+      )}
+
+      {visionTooHeavy && !tooHeavy && (
+        <div className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3" role="alert">
+          <strong className="block mb-1">Photos will be analyzed slowly on this computer.</strong>
+          {vision.label} needs about {visionNeed.toFixed(1)} GB, more than is free next to your system and other apps.
+          Expect the CPU near full load and each photo taking minutes.
+          {rec.ollama_vision_model && rec.ollama_vision_model !== vision.id && ` ${OLLAMA_VISION_MODELS.find(m => m.id === rec.ollama_vision_model)?.label} is recommended for this computer.`}
+          <button type="button" onClick={() => set('ollama_vision_model', rec.ollama_vision_model)}
+                  className="block mt-2 font-medium underline focus:outline-none">
+            Use the recommended image model
+          </button>
+        </div>
       )}
 
       {tooHeavy && (
@@ -236,7 +277,7 @@ function OllamaSettings({ form, setForm }) {
           {recModel && recCtx && ` ${recModel.label} with ${recCtx.label.replace(' tokens', '')} is recommended for this computer.`}
           <button
             type="button"
-            onClick={() => { setCustom(false); setForm(f => ({ ...f, ollama_chat_model: rec.ollama_chat_model, ollama_context: rec.ollama_context })); }}
+            onClick={() => { setCustom(false); setForm(f => ({ ...f, ollama_chat_model: rec.ollama_chat_model, ollama_context: rec.ollama_context, ollama_vision_model: rec.ollama_vision_model || f.ollama_vision_model })); }}
             className="block mt-2 font-medium underline focus:outline-none"
           >
             Use the recommended settings
@@ -257,7 +298,8 @@ function OllamaSettings({ form, setForm }) {
       </details>
 
       <p className="text-xs text-gray-500">
-        Install Ollama from ollama.com, then run: <code>ollama pull {form.ollama_embed_model}</code> and <code>ollama pull {form.ollama_chat_model}</code>
+        Install Ollama from ollama.com, then run: <code>ollama pull {form.ollama_embed_model}</code>, <code>ollama pull {form.ollama_chat_model}</code>
+        {vision && <> and <code>ollama pull {vision.id}</code></>}
       </p>
     </div>
   );
@@ -856,6 +898,12 @@ export default function App() {
             {settingsTest && (
               <p className={`text-xs rounded-lg p-2 mb-4 ${settingsTest.ok ? 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20' : 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20'}`}>
                 {settingsTest.ok ? `Connected: ${settingsTest.embed_model} and ${settingsTest.chat_model} are ready.` : settingsTest.message}
+                {settingsTest.ok && settingsTest.vision_model && settingsTest.vision_ready && ` Image model ${settingsTest.vision_model} is ready.`}
+              </p>
+            )}
+            {settingsTest && settingsTest.ok && settingsTest.vision_model && settingsTest.vision_ready === false && (
+              <p className="text-xs rounded-lg p-2 -mt-2 mb-4 text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20">
+                Image model not installed yet, so photos without text can't be analyzed. Run: <code>ollama pull {settingsTest.vision_model}</code>
               </p>
             )}
 
@@ -920,7 +968,7 @@ export default function App() {
               <li>Config and logs: JSON, YAML, TOML, XML, INI, LOG</li>
               <li>
                 Images: JPG, PNG, BMP, TIFF, WEBP 
-                <span className="block text-xs text-gray-500 mt-1">Note: Images must contain clear, readable text (OCR).</span>
+                <span className="block text-xs text-gray-500 mt-1">Text in images is read with OCR. Photos without text (products, charts, scenes) need local AI with an image model, chosen in Settings.</span>
               </li>
             </ul>
             {limits.enforced && (

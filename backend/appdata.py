@@ -56,6 +56,9 @@ def total_ram_gb() -> float:
 RAM_GB = total_ram_gb()
 LOW_MEMORY = 0 < RAM_GB <= 9  # 8 GB computers (they report a little under 8)
 CONTEXT_CHOICES = ("8192", "16384")
+# Image model for photos without text (products, charts, scenes). Runs only on this computer.
+VISION_CHOICES = ("off", "qwen3-vl:4b", "qwen3-vl:8b")
+VISION_DEFAULT = "qwen3-vl:8b" if RAM_GB >= 15 else "qwen3-vl:4b"
 
 DEFAULT_SETTINGS = {
     "provider": "nvidia",                     # "nvidia" (cloud) or "ollama" (local)
@@ -65,6 +68,7 @@ DEFAULT_SETTINGS = {
     # 8 GB computers: the 3B model with an 8K window fits in memory; 8B with 16K does not.
     "ollama_chat_model": "llama3.2:3b" if LOW_MEMORY else "llama3.1:8b",
     "ollama_context": "8192" if LOW_MEMORY else "16384",   # tokens Ollama keeps in memory per answer
+    "ollama_vision_model": VISION_DEFAULT,   # "off" turns photo analysis off
 }
 _lock = threading.Lock()
 
@@ -94,6 +98,8 @@ def save_settings(changes: dict) -> dict:
             current["provider"] = "nvidia"
         if current["ollama_context"] not in CONTEXT_CHOICES:
             current["ollama_context"] = DEFAULT_SETTINGS["ollama_context"]
+        if current["ollama_vision_model"] not in VISION_CHOICES:
+            current["ollama_vision_model"] = DEFAULT_SETTINGS["ollama_vision_model"]
         path = _settings_path()
         tmp = path.with_suffix(".tmp")
         tmp.write_text(json.dumps(current, indent=2))
@@ -114,8 +120,17 @@ def public_settings() -> dict:
     s["ram_gb"] = round(RAM_GB, 1)
     s["low_memory"] = LOW_MEMORY
     s["recommended"] = {"ollama_chat_model": DEFAULT_SETTINGS["ollama_chat_model"],
-                        "ollama_context": DEFAULT_SETTINGS["ollama_context"]}
+                        "ollama_context": DEFAULT_SETTINGS["ollama_context"],
+                        "ollama_vision_model": DEFAULT_SETTINGS["ollama_vision_model"]}
     return s
+
+
+def images_dir() -> Path:
+    """Copies of photos without text (resized), so the image model can look at them again when
+    a question is about them. Named by the file's SHA-256, like the documents table."""
+    path = data_dir() / "images"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def delete_settings():
