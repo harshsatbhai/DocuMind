@@ -133,8 +133,6 @@
   .picker button[aria-pressed="true"] { color: var(--ink); border-color: var(--rule); background: var(--sheet); }
   .picker button[aria-pressed="true"]::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 3px; height: 2px; border-radius: 2px; background: var(--blue); transform-origin: left; animation: progress var(--dwell, 7s) linear both; }
   .picker.paused button::after { animation-play-state: paused; }
-  .picker .pause { color: var(--muted); padding: 5px 9px; display: inline-flex; }
-  .picker .pause svg { width: 14px; height: 14px; }
   @keyframes progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
   /* Sections */
@@ -398,9 +396,6 @@
           <button type="button" data-go="jsx" aria-pressed="false">jsx</button>
           <button type="button" data-go="json" aria-pressed="false">json</button>
           <button type="button" data-go="jpg" aria-pressed="false">jpg</button>
-          <button type="button" class="pause" aria-label="Pause examples" aria-pressed="false">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-          </button>
         </div>
       </div>
     </div>
@@ -780,11 +775,11 @@ ollama pull llama3.1:8b   # 16 GB or more</pre>
 
   // Hero examples: one per file type, changing every few seconds. The current example drifts
   // left and fades out while the next one drifts in from the right. Hovering or focusing the
-  // examples pauses them; the pause button stops them until pressed again.
+  // examples pauses them.
   (function examples() {
     const DWELL = 7000, MOVE = 900;
     const slides = $$(".slide"), picker = $(".picker"), desk = $(".desk");
-    const buttons = $$(".picker [data-go]"), pauseBtn = $(".picker .pause");
+    const buttons = $$(".picker [data-go]");
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     let index = 0, timer = null, started = 0, left = DWELL, hover = false, stopped = reduced;
     picker.style.setProperty("--dwell", `${DWELL}ms`);
@@ -819,21 +814,11 @@ ollama pull llama3.1:8b   # 16 GB or more</pre>
 
     slides[0].classList.add("is-current"); play(slides[0]);
     buttons.forEach((b, n) => b.addEventListener("click", () => { show(n); }));
-    pauseBtn.addEventListener("click", () => {
-      stopped = !stopped; pauseBtn.setAttribute("aria-pressed", String(stopped));
-      pauseBtn.setAttribute("aria-label", stopped ? "Play examples" : "Pause examples");
-      pauseBtn.innerHTML = stopped
-        ? '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"/></svg>'
-        : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
-      if (!stopped) { left = DWELL; mark(index); }
-      hold();
-    });
     desk.addEventListener("mouseenter", () => { hover = true; hold(); });
     desk.addEventListener("mouseleave", () => { hover = false; hold(); });
     desk.addEventListener("focusin", () => { hover = true; hold(); });
     desk.addEventListener("focusout", (e) => { if (!desk.contains(e.relatedTarget)) { hover = false; hold(); } });
     document.addEventListener("visibilitychange", hold);
-    if (reduced) { pauseBtn.setAttribute("aria-pressed", "true"); pauseBtn.hidden = true; }
     mark(0); schedule();
   })();
 
