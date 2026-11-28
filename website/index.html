@@ -104,9 +104,24 @@
   /* pptx: a 16:9 slide */
   .deck { aspect-ratio: 16 / 9; border: 1px solid var(--rule); border-radius: 6px; padding: 18px 22px; background: linear-gradient(160deg, #FFFFFF 60%, #EEF3FF); display: flex; flex-direction: column; }
   .deck h4 { margin: 0 0 12px; font-size: 17px; letter-spacing: -.01em; }
-  .deck ul { margin: 0; padding: 0; list-style: none; font-size: 13px; color: #3A465E; }
-  .deck li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 6px; border-bottom: 1px dashed #DCE3EE; }
-  .deck li b { font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .deck .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  .deck .top h4 { margin: 0; }
+  .legend { display: flex; gap: 10px; font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+  .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  /* a column chart: plot area with gridlines, one group of two bars per region */
+  .chart { flex: 1; display: grid; grid-template-columns: 30px 1fr; grid-template-rows: 1fr auto; min-height: 0; }
+  .chart .yax { grid-row: 1; display: flex; flex-direction: column; justify-content: space-between; font-size: 9.5px; color: #8A96AC; text-align: right; padding-right: 5px; transform: translateY(5px); }
+  .chart .plot { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0 6px; border-bottom: 1px solid #C9D2E0;
+                 background: repeating-linear-gradient(to top, transparent 0, transparent calc(33.333% - 1px), #EEF2F7 calc(33.333% - 1px), #EEF2F7 33.333%); }
+  .chart .grp { display: flex; align-items: flex-end; justify-content: center; gap: 3px; border-radius: 4px 4px 0 0; padding: 0 3px; }
+  .chart .bar { position: relative; width: 38%; max-width: 22px; border-radius: 3px 3px 0 0; transform-origin: bottom; }
+  .chart .bar.a { background: #C3D3FF; }
+  .chart .bar.b { background: var(--blue); }
+  .chart .bar.b span { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 2px; font-size: 9.5px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .chart .grp.hit { background-image: linear-gradient(rgba(255, 230, 109, .6), rgba(255, 230, 109, .6)); }
+  .chart .xax { grid-column: 2; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 4px 6px 0; font-size: 10.5px; color: #3A465E; text-align: center; }
+  .slide.play .chart .bar { animation: grow .7s .15s both cubic-bezier(.2,.7,.2,1); }
+  @keyframes grow { from { transform: scaleY(0); } }
   .deck .foot { margin-top: auto; font-size: 10px; color: #8A96AC; display: flex; justify-content: space-between; }
 
   /* jsx and json: source code */
@@ -218,6 +233,12 @@
     .sheet { padding: 22px; transform: none; }
     .answer { margin-left: 16px; }
     .picker { padding-left: 0; }
+    .deck { aspect-ratio: auto; padding: 14px 14px 10px; }
+    .deck .top { flex-wrap: wrap; }
+    .chart { flex: none; height: 150px; margin-top: 14px; }
+    .chart .plot { gap: 4px; padding: 0 2px; }
+    .chart .xax { gap: 4px; padding-inline: 2px; }
+    .deck .foot { margin-top: 10px; }
     .code { font-size: 10.5px; }
     .code div::before { width: 18px; margin-right: 8px; }
     .grid { font-size: 12px; }
@@ -226,7 +247,7 @@
     .btn { width: 100%; justify-content: center; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .slide.play mark, .slide.play .hit, .slide.play .answer { animation: none; }
+    .slide.play mark, .slide.play .hit, .slide.play .answer, .slide.play .chart .bar { animation: none; }
     .slide { transform: none !important; transition: opacity .4s; }
     .picker button[aria-pressed="true"]::after { animation: none; transform: scaleX(1); }
     html { scroll-behavior: auto; }
@@ -303,21 +324,29 @@
 
           <div class="slide" data-type="pptx">
             <div class="sheet">
-              <div class="file"><span>launch_plan.pptx</span><span>slide 4 of 12</span></div>
+              <div class="file"><span>q3_business_review.pptx</span><span>slide 5 of 18</span></div>
               <div class="deck">
-                <h4>Launch timeline</h4>
-                <ul>
-                  <li><span>Private beta, 500 users</span><b>3 March</b></li>
-                  <li class="hit"><span>Public launch on web and desktop</span><b>14 April</b></li>
-                  <li><span>Mobile apps</span><b>June</b></li>
-                </ul>
-                <div class="foot"><span>Product launch 2026</span><span>4</span></div>
+                <div class="top">
+                  <h4>Revenue by region</h4>
+                  <div class="legend"><span><i style="background:#C3D3FF"></i>Q3 2025</span><span><i style="background:var(--blue)"></i>Q3 2026</span></div>
+                </div>
+                <div class="chart">
+                  <div class="yax"><span>$600K</span><span>$400K</span><span>$200K</span><span>$0</span></div>
+                  <div class="plot">
+                    <div class="grp"><div class="bar a" style="height:68.4%"></div><div class="bar b" style="height:80.4%"><span>$482K</span></div></div>
+                    <div class="grp"><div class="bar a" style="height:63.4%"></div><div class="bar b" style="height:65.3%"><span>$392K</span></div></div>
+                    <div class="grp hit"><div class="bar a" style="height:75.2%"></div><div class="bar b" style="height:86%"><span>$516K</span></div></div>
+                    <div class="grp"><div class="bar a" style="height:50%"></div><div class="bar b" style="height:49.7%"><span>$298K</span></div></div>
+                  </div>
+                  <div class="xax"><span>North</span><span>South</span><span>East</span><span>West</span></div>
+                </div>
+                <div class="foot"><span>Q3 business review</span><span>5</span></div>
               </div>
             </div>
             <div class="answer">
-              <div class="q">When is the public launch?</div>
-              On 14 April, on web and desktop. It follows a private beta for 500 users that opens on 3 March.
-              <span class="src">[Source: launch_plan.pptx | slide 4: Launch timeline]</span>
+              <div class="q">Which region had the highest revenue in Q3 2026?</div>
+              East, with $515,900, up from $450,900 in Q3 2025 (+14.4%). West was lowest at $298,400.
+              <span class="src">[Source: q3_business_review.pptx | slide 5: Revenue by region | chart]</span>
             </div>
           </div>
 
