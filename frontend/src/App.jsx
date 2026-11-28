@@ -794,7 +794,12 @@ export default function App() {
               <Logo className="w-10 h-10 shrink-0" />
               <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">DocuMind couldn't start</h3>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">{backendError} Please restart DocuMind.</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{String(backendError).split('\n\nDetails:\n')[0]} Please restart DocuMind.</p>
+            {String(backendError).includes('\n\nDetails:\n') && (
+              <pre className="text-xs text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-900 rounded-lg p-3 max-h-48 overflow-auto whitespace-pre-wrap break-words select-text">
+                {String(backendError).split('\n\nDetails:\n')[1]}
+              </pre>
+            )}
           </div>
         </div>
       )}

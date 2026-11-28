@@ -18,6 +18,8 @@ struct Backend {
     info: Mutex<Option<Value>>,
     error: Mutex<Option<String>>,
     child: Mutex<Option<CommandChild>>,
+    /// Last lines the backend wrote to stderr, shown with the error if it stops.
+    log: Mutex<Vec<String>>,
 }
 
 /// Port and token of the local backend. Waits up to 90 s, because the first start of a
@@ -61,14 +63,30 @@ fn start_backend(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 CommandEvent::Stderr(line) => {
-                    eprintln!("[backend] {}", String::from_utf8_lossy(&line).trim_end());
+                    let text = String::from_utf8_lossy(&line).trim_end().to_string();
+                    eprintln!("[backend] {}", text);
+                    let state = handle.state::<Backend>();
+                    let mut log = state.log.lock().unwrap();
+                    log.push(text);
+                    if log.len() > 12 {
+                        log.remove(0);
+                    }
                 }
                 CommandEvent::Error(err) => {
                     *handle.state::<Backend>().error.lock().unwrap() = Some(err);
                 }
                 CommandEvent::Terminated(payload) => {
-                    *handle.state::<Backend>().error.lock().unwrap() =
-                        Some(format!("DocuMind's engine stopped (exit code {:?}).", payload.code));
+                    let state = handle.state::<Backend>();
+                    let log = state.log.lock().unwrap().join("\n");
+                    let mut msg = match payload.code {
+                        Some(code) => format!("DocuMind's engine stopped (exit code {code})."),
+                        None => "DocuMind's engine stopped.".to_string(),
+                    };
+                    if !log.trim().is_empty() {
+                        msg.push_str("\n\nDetails:\n");
+                        msg.push_str(log.trim());
+                    }
+                    *state.error.lock().unwrap() = Some(msg);
                 }
                 _ => {}
             }

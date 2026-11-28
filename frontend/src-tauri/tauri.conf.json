@@ -41,7 +41,8 @@
       "binaries/documind-backend"
     ],
     "macOS": {
-      "signingIdentity": "-"
+      "signingIdentity": "-",
+      "hardenedRuntime": false
     }
   }
 }
